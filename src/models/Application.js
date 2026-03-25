@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const clearanceSchema = new mongoose.Schema({
   status: {
     type: String,
-    enum: ["pending", "cleared", "hold"],
+    enum: ["pending", "cleared", "hold", "na"],
     default: "pending",
   },
   reason: { type: String, default: "" },

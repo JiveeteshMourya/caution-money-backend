@@ -4,15 +4,22 @@ import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
-import connectDB from "./config/db.js";
-
-// Routes
-import authRoutes from "./routes/auth.js";
-import studentRoutes from "./routes/student.js";
-import adminRoutes from "./routes/admin.js";
-import applicationRoutes from "./routes/application.js";
 
 dotenv.config();
+
+import { validateEnv } from "./src/config/env.js";
+validateEnv();
+
+import connectDB from "./src/config/db.js";
+
+// Routes
+import authRoutes from "./src/routes/auth.js";
+import studentRoutes from "./src/routes/student.js";
+import adminRoutes from "./src/routes/admin.js";
+import applicationRoutes from "./src/routes/application.js";
+
+import { errorHandler } from "./src/middleware/errorHandler.js";
+
 connectDB();
 
 const app = express();
@@ -59,14 +66,7 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    error: err.message || "Internal Server Error",
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
-  });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
