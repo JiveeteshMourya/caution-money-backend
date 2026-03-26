@@ -1,230 +1,332 @@
 ==============================================================================
-              CAUTION MONEY BACKEND — TECHNICAL SUMMARY
-                      (For developers working on this project)
+             CAUTION MONEY BACKEND — TECHNICAL SUMMARY
+        (developers ke liye — agar nahi samjha toh code padhlo)
 ==============================================================================
 
 
 ------------------------------------------------------------------------------
-1. STACK OVERVIEW
+1. STACK — KITNE TOOLS HAIN BHAI
 ------------------------------------------------------------------------------
 
-  Runtime      : Node.js (ES Modules — "type": "module" in package.json)
+  Runtime      : Node.js  (ES Modules on — "type": "module" in package.json)
   Framework    : Express.js v4
   Database     : MongoDB Atlas via Mongoose v8
   Auth         : JWT (jsonwebtoken) + bcryptjs (salt rounds: 12)
   Validation   : express-validator v7
   Security     : helmet, cors, express-rate-limit
-  Logging      : morgan (dev mode)
+  Logging      : morgan (dev mode mein — production mein quiet rehta hai)
   Dev tooling  : nodemon, prettier
 
 
 ------------------------------------------------------------------------------
-2. PROJECT ARCHITECTURE — 3-LAYER PATTERN
+2. ARCHITECTURE — TEEN LAYER KA SYSTEM (Controller → Service → Repository)
 ------------------------------------------------------------------------------
 
-  Every feature follows:  Controller → Service → Repository
+  Har feature isi pattern ko follow karta hai. Koi exception nahi. Koi jugaad nahi.
 
   Controller  (src/controllers/)
-    - Parses req, calls service, sends res
-    - No business logic — thin glue layer
+    → req parse karo, service ko call karo, res bhejo
+    → business logic bilkul nahi — ye sirf traffic police hai
+    → agar controller mein if-else logic dikh rahi hai, galat jagah ho tum
 
   Service     (src/services/)
-    - All business rules and decisions live here
-    - Throws AppError subclasses on failures
-    - Calls repositories for DB access
+    → asli dimag yahan hai — sab business rules yahan
+    → failures pe AppError subclasses throw karta hai
+    → repository ko call karta hai DB ke liye
+    → ye layer HTTP se completely unaware honi chahiye
 
   Repository  (src/repositories/)
-    - Raw Mongoose queries only
-    - No business logic, no error throwing
-    - Keeps DB concerns isolated from services
+    → sirf raw Mongoose queries — bas
+    → koi business logic nahi, koi error throw nahi
+    → DB ka kaam DB waali jagah
 
-  This separation means:
-    - Business logic is testable without HTTP context
-    - DB queries are swappable without touching services
-    - Controllers stay clean and consistent
-
-
-------------------------------------------------------------------------------
-3. ENTRY POINT — server.js
-------------------------------------------------------------------------------
-
-  Startup sequence (in order):
-
-    1. dotenv.config()                → load .env into process.env
-    2. validateEnv()                  → crash-fail if required vars missing
-    3. connectDB()                    → connect to MongoDB Atlas (async)
-    4. app.use(helmet())              → security headers on all responses
-    5. app.use(cors({...}))           → whitelist FRONTEND_URL only
-    6. app.use('/api/', limiter)      → 100 req / 15 min, all API routes
-    7. app.use('/api/auth/', authLimiter) → 10 req / 15 min, auth routes only
-    8. app.use(express.json({limit:'10kb'})) → body parser, 10KB cap
-    9. app.use(morgan('dev'))         → HTTP logging to stdout
-   10. Route mounts                   → /api/auth, /api/student, etc.
-   11. app.use(errorHandler)          → global error catch (must be last)
-   12. app.listen(PORT)               → default 5000
+  Faayda:
+    → Service layer HTTP context ke bina test ho sakti hai
+    → DB queries change karo bina service chhue
+    → Controller hamesha ek jaisi dikhti hai — predictable
 
 
 ------------------------------------------------------------------------------
-4. MIDDLEWARE CHAIN (per request)
+3. server.js — STARTUP ORDER (SEQUENCE MATTER KARTA HAI YAAR)
 ------------------------------------------------------------------------------
 
-  Every request passes through this chain before reaching a controller:
+  Ye order galat kiya toh bugs ayenge — socha tha, likha toh sahi se:
+
+    1.  dotenv.config()
+          → .env file load karo process.env mein — SABSE PEHLE
+          → iske baad hi baaki cheezein env vars read kar sakti hain
+
+    2.  validateEnv()
+          → required vars missing? server crash karo — silent fail se better
+          → better loud crash on startup than mysterious 500 at runtime
+
+    3.  connectDB()
+          → MongoDB Atlas se async connect karo
+
+    4.  app.use(helmet())
+          → security headers — responses pe lag jaate hain automatically
+
+    5.  app.use(cors({ origin: FRONTEND_URL, credentials: true }))
+          → sirf whitelisted origin allow karo
+
+    6.  app.use('/api/', limiter)
+          → 100 req / 15 min — sabhi API routes pe
+
+    7.  app.use('/api/auth/', authLimiter)
+          → 10 req / 15 min — auth routes pe extra strict
+          → dono limiters /api/auth/ pe lagte hain — independently count karte hain
+
+    8.  app.use(express.json({ limit: '10kb' }))
+          → body parser — 10KB cap — koi 100MB JSON nahi bhejega hamein
+
+    9.  app.use(morgan('dev'))
+          → request logging stdout pe
+
+   10.  Route mounts
+          → /api/auth, /api/student, /api/admin, /api/application
+
+   11.  app.use(errorHandler)
+          → SABSE AAKHIR mein — global error catcher
+          → pehle mount kiya toh errors yahan nahi ayenge
+
+   12.  app.listen(PORT)
+          → default 5000, suno shuru karo
+
+
+------------------------------------------------------------------------------
+4. MIDDLEWARE CHAIN — HAR REQUEST KA OBSTACLE COURSE
+------------------------------------------------------------------------------
+
+  Request aaya, ab ye gauntlet cross karna hai:
 
   [Rate Limiter] → [CORS check] → [Helmet headers] → [JSON parser]
-       ↓
-  [Route match]
-       ↓
-  [Auth middleware]  (protect / protectStudent / protectAdmin)
-       ↓
-  [Validator rules]  (express-validator body() chains)
-       ↓
-  [validate()]       (checks validationResult, throws 400 if errors)
-       ↓
-  [Controller]
+        ↓
+  [Route match karo]
+        ↓
+  [Auth middleware]   ← protect / protectStudent / protectAdmin
+        ↓
+  [Validator rules]   ← express-validator ke body() chains
+        ↓
+  [validate()]        ← validationResult check, 400 throw if invalid
+        ↓
+  [Controller]        ← finally yahan pahuncha request
+
+  Koi bhi step fail hua → aage nahi jayega. Simple.
 
 
 ------------------------------------------------------------------------------
-5. AUTHENTICATION SYSTEM
+5. AUTH SYSTEM — "TU KAUN HAI BHAI" WALA SYSTEM
 ------------------------------------------------------------------------------
 
-  Token generation — src/utils/tokenHelper.js:
+  TOKEN BANANA (src/utils/tokenHelper.js):
+
     jwt.sign({ id, role }, JWT_SECRET, { expiresIn: JWT_EXPIRE || '7d' })
-    Role embedded in payload: 'student' | 'superadmin' | 'library' | etc.
 
-  Token verification — src/middleware/auth.js:
-    - Expects: Authorization: Bearer <token>
-    - Decodes token → checks decoded.role
-    - If 'student'  → loads Student doc (without password) → req.user
-    - If anything else → loads Admin doc → req.user
-    - Sets req.userType = 'student' | 'admin'
+    Payload mein sirf id aur role — koi sensitive data nahi.
+    Role values: 'student' | 'superadmin' | 'library' | 'sports' |
+                 'hostel' | 'department' | 'accounts'
 
-  Guard middleware:
-    protect(req, res, next)          → validates JWT, sets req.user
-    protectStudent(req, res, next)   → calls protect(), then checks userType === 'student'
-    protectAdmin(req, res, next)     → calls protect(), then checks userType === 'admin'
-    restrictTo(...roles)             → checks req.user.role is in allowed list
+  TOKEN VERIFY KARNA (src/middleware/auth.js):
 
-  Usage pattern on routes:
-    router.patch('/:id/refund', protectAdmin, restrictTo('accounts', 'superadmin'), ...)
-    router.post('/submit', protectStudent, validators, validate, controller)
+    → Authorization: Bearer <token> header expect karta hai
+    → jwt.verify() se decode karo
+    → decoded.role === 'student' → Student.findById() → req.user
+    → kuch bhi aur → Admin.findById() → req.user
+    → dono cases mein -password select karte hain (select: false field)
+    → req.userType = 'student' | 'admin' set hota hai
 
-  Password hashing:
-    - bcrypt.hash(password, 12) in pre('save') hook on Student and Admin models
-    - Only runs when password field is modified (isModified('password') guard)
-    - password field has select: false — never returned in queries by default
-    - comparePassword(candidate) instance method on both models
+  GUARD MIDDLEWARES:
 
-  Account locking (Student model only):
-    - loginAttempts tracked per student
-    - After 5 failed attempts → lockUntil = Date.now() + 2h
-    - isLocked() checks lockUntil > Date.now()
-    - incLoginAttempts() handles incrementing + auto-reset after lock expires
+    protect(req, res, next)
+      → JWT validate karo, req.user set karo — bas
 
+    protectStudent(req, res, next)
+      → protect() call karo, phir check karo userType === 'student'
+      → admin ne student route maara? 403.
 
-------------------------------------------------------------------------------
-6. DATABASE SCHEMAS (Mongoose)
-------------------------------------------------------------------------------
+    protectAdmin(req, res, next)
+      → protect() call karo, phir check karo userType === 'admin'
+      → student ne admin route maara? 403.
 
-  -- Student --
-  Field               Type        Notes
-  enrollmentNumber    String      unique, uppercase, trim, regex: /^[A-Z0-9]{8,14}$/
-  name                String      maxlength: 100
-  mobileNumber        String      regex: /^[6-9]\d{9}$/
-  department          String      enum: CSE/IT/ECE/ME/CE/EE/MCA/MBA/Other
-  dateOfBirth         Date
-  isHosteller         Boolean     default: false
-  password            String      select: false, minlength: 8
-  bankDetails         Object      accountHolderName, accountNumber, ifscCode, bankName, branchName
-  passoutYear         Number
-  isVerified          Boolean     default: false (OTP flow not yet active)
-  otp / otpExpiry              select: false — future OTP verification
-  loginAttempts       Number      default: 0
-  lockUntil           Date
-  lastLogin           Date
-  Hooks: pre('save') → bcrypt hash if password modified
+    restrictTo(...roles)
+      → req.user.role allowed list mein hai?
+      → nahi hai → 403 ForbiddenError
+      → usage: restrictTo('accounts', 'superadmin')
 
-  -- Admin --
-  Field               Type        Notes
-  name                String
-  email               String      unique, lowercase
-  password            String      select: false
-  role                String      enum: superadmin/library/sports/hostel/department/accounts
-  department          String
-  adminId             String      unique (manually assigned)
-  isActive            Boolean     default: true
-  loginAttempts       Number
-  lockUntil           Date
-  Hooks: pre('save') → bcrypt hash if password modified
+  ROUTE PE USAGE PATTERN:
 
-  -- Application --
-  Field               Type        Notes
-  applicationId       String      unique, auto: "IEHE-" + Date.now().toString(36).toUpperCase()
-  student             ObjectId    ref: 'Student'
-  enrollmentNumber    String      denormalized for query convenience
-  studentName         String      denormalized
-  department          String      denormalized
-  mobileNumber        String      denormalized
-  isHosteller         Boolean
-  passoutYear         Number
-  bankDetails         Object      accountHolderName, accountNumber, ifscCode, bankName, branchName
-  clearances          Object      sub-docs: library/sports/hostel/department/accounts
-  overallStatus       String      enum (see section 7)
-  refundAmount        Number      default: 5000
-  refundStatus        String      enum: pending/approved/processed/rejected
-  refundProcessedAt   Date
-  refundTransactionId String      format: "IEHE-TXN-" + Date.now().toString(36).toUpperCase()
-  declaration         Boolean
-  submittedAt         Date
-  lastUpdated         Date        updated in pre('save')
-  timeline            Array       audit log entries: {event, description, performedBy, role, timestamp}
+    router.patch('/:id/refund',
+      protectAdmin,
+      restrictTo('accounts', 'superadmin'),
+      processRefund
+    )
 
-  clearanceSchema (embedded in each clearance slot):
-    status      : 'pending' | 'cleared' | 'hold' | 'na'
-    reason      : String
-    remarks     : String
-    updatedBy   : ObjectId (ref: Admin)
-    updatedByName: String
-    updatedAt   : Date
+    router.post('/submit',
+      protectStudent,
+      submitApplicationRules,
+      validate,
+      submitApplication
+    )
 
-  Note on denormalization:
-    enrollmentNumber, studentName, department, mobileNumber are copied from
-    the student doc at submit time. This avoids populating the Student ref on
-    every list query and keeps application data self-contained.
+  PASSWORD HASHING:
+
+    → pre('save') hook dono models pe — Student aur Admin
+    → bcrypt.hash(password, 12) — salt rounds 12
+    → isModified('password') guard — profile update pe dobara hash nahi hoga
+    → password field: select: false — query mein automatically exclude
+    → comparePassword(candidate) instance method — login ke time use hota hai
+
+  ACCOUNT LOCKING (sirf Student model mein):
+
+    → loginAttempts field track karta hai failures
+    → 5 failed attempts → lockUntil = Date.now() + 2 * 60 * 60 * 1000  (2 ghante)
+    → isLocked() → lockUntil > Date.now() check karta hai
+    → incLoginAttempts() →
+        agar lock expire ho gaya → reset karo (loginAttempts: 1, $unset lockUntil)
+        agar 5th attempt hai aur locked nahi → lockUntil set karo
+        baaki cases → $inc loginAttempts
 
 
 ------------------------------------------------------------------------------
-7. APPLICATION STATUS STATE MACHINE
+6. DATABASE SCHEMAS — MONGOOSE MEIN KAISA DIKH TA HAI DATA
 ------------------------------------------------------------------------------
 
-  overallStatus is NEVER set manually — it is computed by a pre('save') hook
-  on the Application model every time the document is saved.
+  ── STUDENT SCHEMA ──────────────────────────────────────────────────────────
 
-  Logic (src/models/Application.js lines 92–110):
+  Field              Type      Constraints / Notes
+  ─────────────────────────────────────────────────────────────────────────
+  enrollmentNumber   String    unique, uppercase, trim
+                               regex: /^[A-Z0-9]{8,14}$/
+  name               String    maxlength: 100, trim
+  mobileNumber       String    regex: /^[6-9]\d{9}$/  (Indian mobile only)
+  department         String    enum: CSE/IT/ECE/ME/CE/EE/MCA/MBA/Other
+  dateOfBirth        Date      required
+  isHosteller        Boolean   default: false
+  password           String    select: false, minlength: 8
+  bankDetails        Object    accountHolderName, accountNumber, ifscCode,
+                               bankName, branchName  (sabhi optional jab tak
+                               apply nahi kiya)
+  passoutYear        Number    —
+  isVerified         Boolean   default: false  (OTP flow future mein)
+  otp / otpExpiry    String/Date  select: false  (abhi use nahi ho raha)
+  loginAttempts      Number    default: 0
+  lockUntil          Date      —
+  lastLogin          Date      —
+  ─────────────────────────────────────────────────────────────────────────
+  Hook: pre('save') → bcrypt hash if isModified('password')
+
+
+  ── ADMIN SCHEMA ────────────────────────────────────────────────────────────
+
+  Field         Type      Constraints / Notes
+  ─────────────────────────────────────────────────────────────────────────
+  name          String    required
+  email         String    unique, lowercase, trim
+  password      String    select: false
+  role          String    enum: superadmin/library/sports/hostel/department/accounts
+  department    String    required  (department admin ke liye filter key hai)
+  adminId       String    unique  (manually assign karte hain seed mein)
+  isActive      Boolean   default: true
+  loginAttempts Number    —
+  lockUntil     Date      —
+  ─────────────────────────────────────────────────────────────────────────
+  Hook: pre('save') → bcrypt hash if isModified('password')
+
+
+  ── APPLICATION SCHEMA ──────────────────────────────────────────────────────
+
+  Field                Type       Notes
+  ─────────────────────────────────────────────────────────────────────────
+  applicationId        String     unique, auto-generated:
+                                  "IEHE-" + Date.now().toString(36).toUpperCase()
+
+  student              ObjectId   ref: 'Student'
+
+  enrollmentNumber     String     denormalized ← student doc se copy at submit
+  studentName          String     denormalized ← same
+  department           String     denormalized ← same
+  mobileNumber         String     denormalized ← same
+  (Why denormalize? List queries mein populate nahi karna padata — faster)
+
+  isHosteller          Boolean    determines if hostel clearance required
+  passoutYear          Number     —
+  bankDetails          Object     accountHolderName, accountNumber, ifscCode,
+                                  bankName, branchName
+  clearances           Object     5 embedded clearanceSchema docs:
+                                  library / sports / hostel / department / accounts
+  overallStatus        String     enum — KABHI MANUALLY SET NAHI KARO
+                                  (pre-save hook compute karta hai)
+  refundAmount         Number     default: 5000 (hardcoded ₹5000)
+  refundStatus         String     enum: pending/approved/processed/rejected
+  refundProcessedAt    Date       —
+  refundTransactionId  String     "IEHE-TXN-" + Date.now().toString(36).toUpperCase()
+  declaration          Boolean    required: true
+  submittedAt          Date       default: Date.now
+  lastUpdated          Date       pre-save hook mein auto-update hota hai
+  timeline             Array      audit log — {event, description, performedBy,
+                                  role, timestamp}
+  ─────────────────────────────────────────────────────────────────────────
+  Hook: pre('save') → lastUpdated update + overallStatus compute (Section 7)
+
+
+  ── CLEARANCE SUB-SCHEMA (embedded) ─────────────────────────────────────────
+
+  status         'pending' | 'cleared' | 'hold' | 'na'
+  reason         String   (kyun hold/reject kiya)
+  remarks        String   (extra notes)
+  updatedBy      ObjectId  (ref: Admin)
+  updatedByName  String    (denormalized — display ke liye)
+  updatedAt      Date
+
+  'na' status ka matlab hostel clearance — non-hosteller students ke liye.
+  Automatically set hota hai at submit time based on isHosteller.
+
+
+------------------------------------------------------------------------------
+7. STATUS STATE MACHINE — AUTOMATIC COMPUTE, HAATH MAT LAGAO
+------------------------------------------------------------------------------
+
+  overallStatus KABHI MANUALLY SET NAHI KARO. Pre-save hook hai iske liye.
+  Jab bhi app.save() call hogi, hook chalta hai aur recompute karta hai.
+
+  LOGIC (src/models/Application.js:92–110):
 
     required = ['library', 'sports', 'department', 'accounts']
-    if (isHosteller) required.push('hostel')
+    if (this.isHosteller) required.push('hostel')
 
     statuses = required.map(k => clearances[k].status)
 
-    if any status === 'hold'     → overallStatus = 'on_hold'
-    else if all === 'cleared'    → 'fully_cleared' or 'refund_processed'
-                                   (depends on refundStatus === 'processed')
-    else if some === 'cleared'   → 'partially_cleared'
-    else                         → 'under_review'
+    PRIORITY ORDER (upar waala pehle check hota hai):
 
-  Note: 'submitted' is only the initial default. Once any save occurs (e.g.
-  a clearance update), the hook overwrites it with the computed status.
+    1. statuses.some(s => s === 'hold')
+         → overallStatus = 'on_hold'
+         → ek bhi hold hai toh poora hold — koi mercy nahi
 
-  State transitions:
+    2. statuses.every(s => s === 'cleared')
+         → refundStatus === 'processed'?
+              haan → 'refund_processed'
+              nahi → 'fully_cleared'
+
+    3. statuses.some(s => s === 'cleared')
+         → 'partially_cleared'
+
+    4. else
+         → 'under_review'
+
+  GOTCHA: 'submitted' sirf initial default hai — pehli save pe overwrite
+  ho jaata hai. Isko preserve karna ho toh hook change karna padega.
+
+  TRANSITIONS:
+
     submitted → under_review → partially_cleared → fully_cleared → refund_processed
-                             ↘ on_hold ↗
+                             ↘ on_hold (kisi bhi stage pe) ↗
 
 
 ------------------------------------------------------------------------------
-8. CLEARANCE ROLE AUTHORIZATION
+8. CLEARANCE ROLE AUTHORIZATION — KAUN KYA KAR SAKTA HAI
 ------------------------------------------------------------------------------
 
-  Defined in src/constants/departments.js:
+  src/constants/departments.js:
 
     CLEARANCE_ROLE_MAP = {
       library   : ['library',    'superadmin'],
@@ -234,232 +336,335 @@
       accounts  : ['accounts',   'superadmin'],
     }
 
-  In application.service.js → updateClearance():
-    Checks CLEARANCE_ROLE_MAP[clearanceType].includes(admin.role)
-    Throws ForbiddenError if not allowed.
+  application.service.js → updateClearance():
 
-  Department scoping:
-    Admins with role === 'department' only see applications where
-    application.department === admin.department (applied in getAllApplications query).
+    if (!CLEARANCE_ROLE_MAP[clearanceType]?.includes(admin.role))
+      throw new ForbiddenError(...)
+
+  Library admin accounts clearance update karne ki koshish kare?
+  ForbiddenError. Seedha. Koi "but I'm senior" nahi chalta.
+
+  DEPARTMENT SCOPING:
+
+    role === 'department' wale admins sirf apne department ki
+    applications dekhte hain:
+
+    getAllApplications() mein:
+      if (admin.role === 'department') query.department = admin.department
+
+    CSE department admin IT ki applications nahi dekh sakta. Boundaries.
 
 
 ------------------------------------------------------------------------------
-9. REPOSITORY LAYER (src/repositories/application.repository.js)
+9. REPOSITORY LAYER — DATABASE SE BAAT KARNE KA AKELA RASTA
 ------------------------------------------------------------------------------
+
+  src/repositories/application.repository.js — sabhi functions:
 
   findByStudentId(studentId)
-    Application.findOne({ student: studentId })
+    → Application.findOne({ student: studentId })
+    → ObjectId match karta hai, string nahi
 
   findByApplicationId(applicationId, populate = false)
-    Application.findOne({ applicationId })
-    Optional .populate('student', 'name enrollmentNumber mobileNumber department dateOfBirth')
+    → Application.findOne({ applicationId })
+    → populate = true ho toh:
+       .populate('student', 'name enrollmentNumber mobileNumber department dateOfBirth')
+    → sirf /api/application/:id pe populate use hota hai (single view)
+    → list queries mein populate nahi — denormalized fields use karo
 
   findAll(query, page, limit)
-    Application.find(query)
-      .sort({ submittedAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
+    → Application.find(query)
+        .sort({ submittedAt: -1 })    ← newest first
+        .skip((page - 1) * limit)     ← offset-based pagination
+        .limit(Number(limit))
+    → page 1-indexed hai
 
   countDocuments(query)
-    Application.countDocuments(query)
+    → Application.countDocuments(query)
+    → pagination ke liye total count
 
   create(data)
-    Application.create(data)
+    → Application.create(data)
 
-  Note: All pagination is offset-based (skip/limit). page is 1-indexed.
+  NOTE: Repository sirf queries karta hai. Error throw karna service ka kaam hai.
 
 
 ------------------------------------------------------------------------------
-10. VALIDATION LAYER
+10. VALIDATION LAYER — GARBAGE IN, GARBAGE OUT SE BACHNE KA TARIKA
 ------------------------------------------------------------------------------
 
-  Pattern:
-    Route file imports validator rules array + validate middleware
+  PATTERN:
+    Route file → validator rules array + validate middleware import
     router.post('/route', authMiddleware, [...rules], validate, controller)
 
   validate middleware (src/validators/validate.js):
-    Calls validationResult(req) — if errors exist, returns 400 with
-    first error message.
+    → validationResult(req) check karta hai
+    → errors hain? → 400 with first error message return karo
+    → errors nahi? → next() — aage chalo
 
-  Auth rules (src/validators/auth.validators.js):
-    studentRegisterRules: enrollment (8-14 chars), name, mobile (/^[6-9]\d{9}$/),
-                          department, dateOfBirth (isDate), password (min 8), isHosteller
-    studentLoginRules:    enrollmentNumber, password
-    adminLoginRules:      email (isEmail + normalizeEmail), password
+  AUTH RULES (src/validators/auth.validators.js):
 
-  Application rules (src/validators/application.validators.js):
-    submitApplicationRules: bankDetails fields, ifscCode (/^[A-Z]{4}0[A-Z0-9]{6}$/i),
-                            passoutYear (int 2000–2030), declaration (isBoolean)
-    updateClearanceRules:   clearanceType (isIn CLEARANCE_TYPES),
-                            status (isIn ['cleared','hold','pending']),
-                            reason (optional string)
+    studentRegisterRules:
+      enrollmentNumber  → trim, notEmpty, length 8-14
+      name              → trim, notEmpty, length 2-100
+      mobileNumber      → matches(/^[6-9]\d{9}$/)
+      department        → notEmpty
+      dateOfBirth       → isDate()
+      password          → isLength({ min: 8 })
+      isHosteller       → isBoolean()
+
+    studentLoginRules:
+      enrollmentNumber  → trim, notEmpty
+      password          → notEmpty
+
+    adminLoginRules:
+      email             → isEmail() + normalizeEmail()
+      password          → notEmpty
+
+  APPLICATION RULES (src/validators/application.validators.js):
+
+    submitApplicationRules:
+      bankDetails.accountHolderName  → trim, notEmpty
+      bankDetails.accountNumber      → trim, length 9-18
+      bankDetails.ifscCode           → matches(/^[A-Z]{4}0[A-Z0-9]{6}$/i)
+      bankDetails.bankName           → trim, notEmpty
+      passoutYear                    → isInt({ min: 2000, max: 2030 })
+      declaration                    → isBoolean()
+
+    updateClearanceRules:
+      clearanceType  → isIn(CLEARANCE_TYPES)
+      status         → isIn(['cleared', 'hold', 'pending'])
+      reason         → optional, isString, trim
 
 
 ------------------------------------------------------------------------------
-11. ERROR HANDLING
+11. ERROR HANDLING — PROFESSIONALLY CRASH KARO
 ------------------------------------------------------------------------------
 
-  AppError hierarchy (src/errors/AppError.js):
-    AppError(message, statusCode)  → base, sets isOperational = true
-      NotFoundError    → 404
-      ConflictError    → 409
-      ForbiddenError   → 403
-      ValidationError  → 400
-      UnauthorizedError → 401
+  AppError HIERARCHY (src/errors/AppError.js):
 
-  errorHandler middleware (src/middleware/errorHandler.js):
-    if (err.isOperational)  → res.status(err.statusCode).json({ error: err.message })
-    else                    → log stack, res.status(500).json({ error: 'Internal Server Error' })
-                              + stack trace included if NODE_ENV === 'development'
+    AppError(message, statusCode)   ← base class, isOperational = true
+      ├── NotFoundError             → 404
+      ├── ConflictError             → 409
+      ├── ForbiddenError            → 403
+      ├── ValidationError           → 400
+      └── UnauthorizedError         → 401
 
-  Pattern in services:
+  isOperational = true matlab "ye expected error hai" — user ki galti ya
+  valid business rejection. false matlab "kuch toot gaya" — unexpected crash.
+
+  errorHandler MIDDLEWARE (src/middleware/errorHandler.js):
+
+    err.isOperational === true?
+      → res.status(err.statusCode).json({ error: err.message })
+      → agar err.applicationId hai → response mein spread karo
+         (ConflictError pe use hota hai — "already applied, tera ID ye hai")
+
+    err.isOperational === false (unexpected)?
+      → console.error(err.stack)
+      → res.status(500).json({ error: 'Internal Server Error' })
+      → NODE_ENV === 'development'? stack trace bhi bhejo
+
+  SERVICE MEIN PATTERN:
+
     throw new ConflictError('Application already submitted')
-    // or with extra data:
-    throw Object.assign(new ConflictError('...'), { applicationId: existing.applicationId })
-    // errorHandler spreads extra props into response if present
+
+    // Extra data ke saath:
+    throw Object.assign(
+      new ConflictError('Application already submitted'),
+      { applicationId: existing.applicationId }
+    )
+    // errorHandler ye extra prop response mein spread kar deta hai
 
 
 ------------------------------------------------------------------------------
-12. RESPONSE FORMAT
+12. RESPONSE FORMAT — CLEAN RAHO, WRAPPER MAT LAGAO
 ------------------------------------------------------------------------------
 
-  sendSuccess(res, data, statusCode = 200) in src/utils/response.js:
-    Simply calls res.status(statusCode).json(data)
+  sendSuccess(res, data, statusCode = 200):
+    → sirf res.status(statusCode).json(data) — bas
+    → koi { success: true, data: {...} } envelope nahi
+    → har controller apna response shape define karta hai
 
-  All success responses are plain JSON objects shaped per-controller.
-  No envelope wrapper (no { success: true, data: ... } pattern).
+  SUCCESS responses examples:
+    { message: "Application submitted", applicationId: "IEHE-XYZ", application: {...} }
+    { applications: [...], total: 42, pages: 3, current: 1 }
 
-  Error responses shape:
-    { error: "message string" }
-    { error: "message", applicationId: "IEHE-..." }   ← ConflictError with extra prop
-    { error: "...", stack: "..." }                     ← dev mode only
-
-
-------------------------------------------------------------------------------
-13. DASHBOARD STATS QUERY
-------------------------------------------------------------------------------
-
-  getDashboardStats() in application.service.js runs 6 countDocuments()
-  queries in parallel using Promise.all():
-
-    [total, submitted, underReview, cleared, refunded, onHold] =
-      await Promise.all([...6 queries...])
-
-  underReview counts both 'under_review' AND 'partially_cleared' statuses
-  using $in operator.
-
-  totalRefundAmount = refunded * 5000 (computed, not stored)
-
-  Department admins get filtered stats (baseQuery = { department: admin.department }).
-  All other admins get global stats.
+  ERROR responses:
+    { error: "message string" }                           ← standard
+    { error: "Already applied", applicationId: "IEHE-X" } ← ConflictError + extra
+    { error: "...", stack: "Error: ...\n    at ..." }     ← dev mode only
 
 
 ------------------------------------------------------------------------------
-14. RATE LIMITING CONFIGURATION
+13. DASHBOARD STATS — PROMISE.ALL SE PARALLELISM, SMART BANO
 ------------------------------------------------------------------------------
 
-  General limiter:  windowMs: 15 * 60 * 1000 (15 min), max: 100
-  Auth limiter:     windowMs: 15 * 60 * 1000 (15 min), max: 10
+  getDashboardStats() mein 6 DB queries ek saath chalti hain:
 
-  Applied at:
-    app.use('/api/', limiter)          → all API routes
-    app.use('/api/auth/', authLimiter) → auth routes (more restrictive)
+    const [total, submitted, underReview, cleared, refunded, onHold] =
+      await Promise.all([
+        appRepo.countDocuments(baseQuery),
+        appRepo.countDocuments({ ...baseQuery, overallStatus: 'submitted' }),
+        appRepo.countDocuments({ ...baseQuery, overallStatus: { $in: ['under_review', 'partially_cleared'] } }),
+        appRepo.countDocuments({ ...baseQuery, overallStatus: 'fully_cleared' }),
+        appRepo.countDocuments({ ...baseQuery, overallStatus: 'refund_processed' }),
+        appRepo.countDocuments({ ...baseQuery, overallStatus: 'on_hold' }),
+      ])
 
-  Both limiters are applied to /api/auth/ — both count independently.
-  Response on limit hit: 429 { error: "Too many requests..." }
+  Sequential hoti toh 6x slow hoti. Promise.all → parallel → fast.
 
+  underReview mein $in operator use hota hai — under_review AND
+  partially_cleared dono count karta hai ek saath.
 
-------------------------------------------------------------------------------
-15. SECURITY HEADERS (helmet)
-------------------------------------------------------------------------------
+  totalRefundAmount = refunded * 5000 — stored nahi hai, compute hota hai.
 
-  app.use(helmet()) applies these headers automatically:
-    Content-Security-Policy
-    X-DNS-Prefetch-Control
-    X-Frame-Options: SAMEORIGIN
-    X-Permitted-Cross-Domain-Policies
-    Referrer-Policy
-    X-Content-Type-Options: nosniff
-    X-XSS-Protection (legacy browsers)
-    Strict-Transport-Security (HSTS)
+  Department admin? baseQuery = { department: admin.department } — filtered stats.
+  Baaki sab? baseQuery = {} — global stats.
 
-
-------------------------------------------------------------------------------
-16. CORS CONFIGURATION
-------------------------------------------------------------------------------
-
-  cors({ origin: process.env.FRONTEND_URL, credentials: true })
-
-  Single allowed origin — no wildcard.
-  credentials: true needed for cookie-based flows (if added later).
-  Blocked origins receive a CORS error before reaching any route handler.
+  Saath mein recentApplications = findAll(baseQuery, 1, 5) — latest 5.
 
 
 ------------------------------------------------------------------------------
-17. CONSTANTS (src/constants/)
+14. RATE LIMITING — SPAM KI WAAAT
 ------------------------------------------------------------------------------
 
-  departments.js:
-    DEPARTMENTS        = ['CSE','IT','ECE','ME','CE','EE','MCA','MBA','Other']
-    CLEARANCE_TYPES    = ['library','sports','hostel','department','accounts']
-    CLEARANCE_ROLE_MAP = { library: [...], sports: [...], ... }
+  General limiter:
+    windowMs : 15 * 60 * 1000   (15 minutes)
+    max      : 100 requests
+    Applied  : app.use('/api/', limiter) — sabhi routes
 
-  roles.js:
-    (Admin roles and user type constants)
+  Auth limiter:
+    windowMs : 15 * 60 * 1000   (15 minutes)
+    max      : 10 requests
+    Applied  : app.use('/api/auth/', authLimiter) — login/register only
 
-  statuses.js:
+  /api/auth/ pe DONO limiters lagte hain — independently.
+  Matlab /api/auth/student/login pe 10 auth limit + 100 general limit
+  dono count karte hain separately.
+
+  Limit hit? → 429 Too Many Requests
+    { error: "Too many requests, please try again later." }
+    { error: "Too many login attempts, please try again later." }
+
+
+------------------------------------------------------------------------------
+15. SECURITY HEADERS — HELMET EK LINE MEIN KAAM KARTA HAI
+------------------------------------------------------------------------------
+
+  app.use(helmet()) ye headers set karta hai automatically:
+
+    Content-Security-Policy          → XSS aur injection attacks block
+    X-DNS-Prefetch-Control: off      → DNS prefetch band
+    X-Frame-Options: SAMEORIGIN      → clickjacking se bachao
+    X-Permitted-Cross-Domain-Policies: none
+    Referrer-Policy: no-referrer     → URL leak nahi hogi referrer mein
+    X-Content-Type-Options: nosniff  → MIME sniffing attack block
+    X-XSS-Protection: 0              → legacy header (modern CSP better hai)
+    Strict-Transport-Security (HSTS) → HTTPS force karo
+
+
+------------------------------------------------------------------------------
+16. CORS — KAUN AA SAKTA HAI, KAUN NAHI
+------------------------------------------------------------------------------
+
+  cors({
+    origin: process.env.FRONTEND_URL,   ← exact match, no wildcard
+    credentials: true                    ← cookies future ke liye ready
+  })
+
+  Single origin allow. '*' nahi. Sab kuch strict.
+  Blocked origin ko response nahi milega — CORS preflight fail ho jaayega.
+  credentials: true cookies/auth headers allow karta hai cross-origin pe
+  (abhi JWT Bearer use ho raha hai — ye future-proofing hai).
+
+
+------------------------------------------------------------------------------
+17. CONSTANTS — MAGIC STRINGS SE BACHNE KA TARIKA
+------------------------------------------------------------------------------
+
+  src/constants/departments.js:
+
+    DEPARTMENTS     = ['CSE','IT','ECE','ME','CE','EE','MCA','MBA','Other']
+    CLEARANCE_TYPES = ['library','sports','hostel','department','accounts']
+    CLEARANCE_ROLE_MAP = { library: ['library','superadmin'], ... }
+
+  src/constants/statuses.js:
+
     APPLICATION_STATUS = {
-      SUBMITTED: 'submitted', UNDER_REVIEW: 'under_review',
-      PARTIALLY_CLEARED: 'partially_cleared', FULLY_CLEARED: 'fully_cleared',
-      REFUND_PROCESSED: 'refund_processed', REJECTED: 'rejected',
-      ON_HOLD: 'on_hold'
+      SUBMITTED         : 'submitted',
+      UNDER_REVIEW      : 'under_review',
+      PARTIALLY_CLEARED : 'partially_cleared',
+      FULLY_CLEARED     : 'fully_cleared',
+      REFUND_PROCESSED  : 'refund_processed',
+      REJECTED          : 'rejected',
+      ON_HOLD           : 'on_hold',
     }
 
-  Used across services and models to avoid magic strings.
+  'fully_cleared' seedha 5 jagah likhoge → ek typo → silent bug.
+  APPLICATION_STATUS.FULLY_CLEARED → typo? JS runtime error dega.
+  Constants always > magic strings. Always.
 
 
 ------------------------------------------------------------------------------
-18. DATABASE SEEDING (src/config/seed.js)
+18. DATABASE SEEDING — PEHLI BAAR SETUP KE LIYE
 ------------------------------------------------------------------------------
 
-  Run via: npm run seed
-  Populates initial admin accounts and any required base data.
-  Should only be run once on a fresh database (or cleared database).
+  npm run seed → node src/config/seed.js
+
+  Initial admin accounts banata hai (superadmin + department admins).
+  Sirf fresh database pe chalao.
+  Dobara chalaya toh conflicts ho sakte hain (unique fields clash).
+  Already seeded DB pe chalana ho toh pehle wipe karo ya seed idempotent banao.
 
 
 ------------------------------------------------------------------------------
-19. ENVIRONMENT VARIABLES (required — validated at startup)
+19. ENVIRONMENT VARIABLES — YE MISSING HO TOH SERVER CHALEGA HI NAHI
 ------------------------------------------------------------------------------
 
-  Validated by validateEnv() in src/config/env.js.
-  App crashes on startup if any are missing.
+  validateEnv() crash karta hai on startup agar koi missing ho.
 
-  PORT            → Express listen port (default: 5000)
-  MONGODB_URI     → Full MongoDB Atlas connection string
-  JWT_SECRET      → HMAC secret for JWT signing
-  JWT_EXPIRE      → Token TTL string e.g. "7d", "24h"
-  NODE_ENV        → 'development' | 'production'
-  FRONTEND_URL    → Exact origin for CORS whitelist
+  Variable        Required   Notes
+  ──────────────────────────────────────────────────────────────────────────
+  PORT            Yes        Express listen port (default: 5000)
+  MONGODB_URI     Yes        Full Atlas connection string (credentials inside)
+  JWT_SECRET      Yes        HMAC-SHA256 key for JWT signing — strong rakhna
+  JWT_EXPIRE      Yes        Token TTL — "7d", "24h", "30m" format
+  NODE_ENV        Yes        'development' | 'production'
+                             development = stack traces in errors + verbose logs
+  FRONTEND_URL    Yes        Exact origin for CORS — trailing slash mat daal
+  ──────────────────────────────────────────────────────────────────────────
+
+  .env file .gitignore mein hai. Wahan rahegi. GitHub pe nahi jaayegi.
+  Nayi machine pe kaam karna ho? .env.example banao — values nahi, keys.
 
 
 ------------------------------------------------------------------------------
 20. NPM SCRIPTS
 ------------------------------------------------------------------------------
 
-  npm run dev     → nodemon server.js  (watch mode, auto-restart)
-  npm start       → node server.js     (production)
+  npm run dev     → nodemon server.js     ← watch mode, file change pe restart
+  npm start       → node server.js        ← production, no watch
   npm run seed    → node src/config/seed.js
-  npm run format  → prettier --write . (respects .prettierignore)
+  npm run format  → prettier --write .    ← .prettierignore respect karta hai
 
 
 ------------------------------------------------------------------------------
-21. ES MODULE NOTES
+21. ES MODULES — require() BHOOL JAO
 ------------------------------------------------------------------------------
 
-  Package uses "type": "module" → all files use import/export syntax.
-  No require() / module.exports anywhere.
-  File extensions must be included in relative imports: import x from './file.js'
-  Top-level await is available.
+  package.json mein "type": "module" set hai.
+  Poora codebase ES Module syntax use karta hai.
+
+  RULES:
+    → import/export everywhere — koi require() nahi, koi module.exports nahi
+    → relative imports mein extension mandatory: import x from './file.js'
+       (ye bhool gaye? "Cannot find module" error aayega — frustrating hai)
+    → Top-level await available hai — async IIFE ki zaroorat nahi
+    → __dirname aur __filename directly available nahi —
+       import.meta.url se banana padega agar kabhi chahiye ho
 
 
+==============================================================================
+         Padhne ke liye shukriya. Ab jaao code karo. — Backend Docs
 ==============================================================================

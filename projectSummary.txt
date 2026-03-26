@@ -1,280 +1,350 @@
 ==============================================================================
-                  CAUTION MONEY BACKEND — PROJECT SUMMARY
+              CAUTION MONEY BACKEND — PROJECT SUMMARY
+         (bhai padh le, baad mein "samajh nahi aaya" mat bolna)
 ==============================================================================
 
 
 ------------------------------------------------------------------------------
-WHAT IS THIS PROJECT?
+YE PROJECT HAI KYA BHAI?
 ------------------------------------------------------------------------------
 
-This is the backend (server-side) of a "Caution Money Refund System" built
-for a college/institution. When students leave college, they can apply to get
-their caution deposit (a security fee they paid during admission) refunded.
+Toh bhai, ye ek "Caution Money Refund System" ka backend hai — basically ek
+server jो college ke students ko unka caution deposit wapas dilaata hai.
 
-This backend handles:
-  - Student registration and login
-  - Submitting a refund application with bank details
-  - Multiple department approvals (clearances) before money is refunded
-  - Admin logins for each department to approve/reject their clearance
-  - Dashboard for admins to see all applications and their status
+Jab tum college join karte ho, college kuch paise "security deposit" ke naam
+pe leta hai — jise caution money bolte hain. Aur jab tum college chhod do
+(padhke ya bhaagke, dono case mein), toh wo paise wapas milne chahiye.
 
+Problem? College ka system itna slow hai ki paise lene ke liye bhi
+5 alag-alag departments se "haan bhai theek hai" karwana padta hai.
+Isliye ye system banaya — taaki sab digitally ho aur koi excuse na bache.
 
-------------------------------------------------------------------------------
-HOW DOES IT WORK? (The Big Picture)
-------------------------------------------------------------------------------
-
-Think of this backend as a "middleman" between the frontend website and the
-database. It receives requests from the frontend, processes them, and sends
-back a response.
-
-Here is the general flow:
-
-  1. Frontend sends a request  →  e.g., "Student wants to login"
-  2. Backend checks if the request is valid  →  Is the password correct?
-  3. Backend talks to the database  →  Fetch/save the student's data
-  4. Backend sends back a response  →  "Here is your login token" or "Wrong password"
-
-The student goes through this journey:
-  Register → Login → Add Bank Details → Submit Application → Wait for Clearances → Get Refund
-
-The admin goes through this journey:
-  Login → View Applications → Approve/Reject Their Department Clearance → Process Refund
+Ye backend ye sab handle karta hai:
+  - Student ka registration aur login
+  - Bank details deke refund application submit karna
+  - 5 departments se clearance lena (library, sports, hostel, dept, accounts)
+  - Har department ka apna admin login
+  - Admins ke liye dashboard — kaun sa application kitne mein hai
 
 
 ------------------------------------------------------------------------------
-FOLDER STRUCTURE (What goes where)
+KAM KAISE KARTA HAI? (Bade picture mein)
+------------------------------------------------------------------------------
+
+Socho backend ek "middleman dost" hai jo frontend (website) aur database ke
+beech mein baitha hai. Frontend bolti hai "ye karo" — backend check karta hai
+"sahi hai?" — database se data laata hai — aur response bhejta hai.
+
+Simple flow:
+
+  1. Frontend request bhejti hai  →  "Student login karna chahta hai"
+  2. Backend check karta hai      →  "Password sahi hai? Fake toh nahi?"
+  3. Database se baat karta hai   →  Student ka data fetch/save karo
+  4. Response bhejta hai          →  "Le bhai tera token" ya "galat password"
+
+Student ka poora safar:
+  Register → Login → Bank Details Daal → Application Submit →
+  Clearances ka Wait karo (aur karo... aur karo...) → Paise wapas!
+
+Admin ka kaam:
+  Login → Applications dekho → Apne department ki clearance approve/reject karo
+
+
+------------------------------------------------------------------------------
+FOLDER STRUCTURE (Kaun si cheez kahan rehti hai)
 ------------------------------------------------------------------------------
 
 caution-money-backend/
 │
-├── server.js           → The starting point. Runs the server.
-├── package.json        → List of all libraries this project uses.
-├── .env                → Secret settings (passwords, database URL, etc.)
+├── server.js        → Ye wala file server start karta hai. Iska kaam seedha
+│                      hai — "chalO bhai sab setup karo aur sun shuru karo"
 │
-└── src/                → All the main code lives here
+├── package.json     → Grocery list jaisi cheez — sabhi libraries listed hain
+│
+├── .env             → TOP SECRET FILE. Passwords, database URL sab yahan.
+│                      Ise kabhi GitHub pe mat daalna. Seriously. MAT DAALNA.
+│
+└── src/             → Asli code yahan rehta hai
     │
-    ├── config/         → Setup files (database connection, env validation)
-    ├── constants/       → Fixed values like department names, roles, statuses
-    ├── errors/          → Custom error message templates
-    ├── middleware/      → Code that runs in between every request (auth, errors)
-    ├── models/          → Blueprint of how data is stored in the database
-    ├── controllers/     → Entry point for each request — decides what to do
-    ├── services/        → The actual business logic / rules of the app
-    ├── repositories/    → Talks directly to the database
-    ├── validators/      → Checks if the user's input is correct before processing
-    └── utils/           → Small helper functions (generate token, format response)
+    ├── config/      → Setup wali files — DB se connect karo, env check karo
+    ├── constants/   → Fixed values — department names, roles, status strings
+    │                  (magic strings se bachne ke liye — "library" 50 jagah
+    │                  type karne se better hai ek constant banana)
+    ├── errors/      → Custom error classes — "404 Not Found" bolne ka
+    │                  professional tarika
+    ├── middleware/  → Har request ke beech mein chalne wala code —
+    │                  "ruko pehle token check karo, phir aage bado"
+    ├── models/      → Database ka blueprint — student ka data kaisa dikhega,
+    │                  application mein kya kya fields honge
+    ├── controllers/ → Request aata hai yahan pehle — "theek hai, service ko
+    │                  bolo kya karna hai"
+    ├── services/    → Asli dimag yahan hai — business rules, logic, decisions
+    │                  "kya ye student pehle se apply kar chuka hai?"
+    ├── repositories/→ Database se directly baat karne wali jagah —
+    │                  "MongoDB bhai, ye data dedo"
+    ├── validators/  → Input check karta hai pehle — "bhai IFSC code sahi
+    │                  format mein daal, ABCD123 kya hota hai?"
+    └── utils/       → Chhote chhote helpers — token banao, response bhejo
 
 
 ------------------------------------------------------------------------------
-THE REQUEST JOURNEY (Step-by-step example)
+EK REQUEST KA SAFAR (Step-by-step — application submit karne ka example)
 ------------------------------------------------------------------------------
 
-Example: A student submits a refund application
+Student ne "Submit Application" button dabaaya. Ab kya hoga?
 
-  1. Student clicks "Submit Application" on the website
-  2. Frontend sends a POST request to: /api/application/submit
-  3. Rate Limiter checks: "Is this user sending too many requests? (spam check)"
-  4. Auth Middleware checks: "Is the user logged in? Is their token valid?"
-  5. Validator checks: "Did they fill all required fields correctly?"
-  6. Controller receives the request and calls the Service
-  7. Service applies business rules: "Has the student already applied? Do they have bank details?"
-  8. Repository saves the new application to the database
-  9. Backend sends back: "Application submitted successfully!"
+  1. Frontend POST request bhejti hai → /api/application/submit
+
+  2. Rate Limiter check karta hai → "Bhai 15 minute mein 100 se zyada
+     requests mat maar, spam mat kar"
+
+  3. Auth Middleware → "Tera JWT token hai? Valid hai? Expired toh nahi?
+     Haan sab theek? Chalo aage."
+
+  4. Validator → "Bank account number diya? IFSC sahi format mein hai?
+     Declaration checkbox tick kiya? Sab sahi? Achha."
+
+  5. Controller → "Service bhai, handle karo isko"
+
+  6. Service → "Dekho — kya ye student pehle se apply kar chuka hai?
+     Nahi? Theek hai, application banao."
+
+  7. Repository → "MongoDB, ye nayi application save karo please"
+
+  8. Response → "Application submitted successfully! ID: IEHE-XYZ123"
+
+  Student: "Finally!"  Backend: "Mera kaam ho gaya, ab clearances ka wait karo."
 
 
 ------------------------------------------------------------------------------
-WHO ARE THE USERS? (Roles)
+USERS KAUN HAIN? (Roles)
 ------------------------------------------------------------------------------
 
-There are two types of users:
+Do type ke log hain is system mein:
 
   STUDENTS
-    - Register with their enrollment number
-    - Login and submit a refund application
-    - Track their clearance status
+    - Apne enrollment number se register karte hain
+    - Login karke refund application submit karte hain
+    - Apna clearance status track karte hain
+    - Basically wait karte hain aur F5 dabaate rehte hain
 
-  ADMINS (6 types)
-    - superadmin   → Full access, can do everything
-    - library      → Manages library clearance
-    - sports       → Manages sports clearance
-    - hostel       → Manages hostel clearance
-    - department   → Manages department clearance
-    - accounts     → Final step — processes the actual refund
-
-
-------------------------------------------------------------------------------
-THE APPLICATION LIFECYCLE (How an application progresses)
-------------------------------------------------------------------------------
-
-  submitted          → Student just submitted the form
-       ↓
-  under_review       → Admins are reviewing clearances
-       ↓
-  partially_cleared  → Some departments approved, some still pending
-       ↓
-  on_hold            → One or more departments put it on hold (issue found)
-       ↓
-  fully_cleared      → ALL departments approved → ready for refund
-       ↓
-  refund_processed   → Accounts admin marked refund as done ✓
-
-  (rejected)         → Application was rejected at any stage
-
-Clearances needed:
-  - Library    → Always required
-  - Sports     → Always required
-  - Department → Always required
-  - Hostel     → Only if the student was a hosteller
-  - Accounts   → Final clearance, processed after all others
+  ADMINS (6 types — har ek ka apna raaj)
+    - superadmin    → Sabka baap. Full access. Jo chahe kar sakta hai.
+    - library       → "Kitaabein wapas di? Haan? Cleared."
+    - sports        → "Sports kit return ki? Ground ka kiraya baaki nahi?
+                       OK cleared."
+    - hostel        → "Hostel room saaf chhoda? Mattress nahi churaaya?
+                       Cleared."
+    - department    → Apne department ke students ki clearance
+    - accounts      → Sabka favourite — ye wala refund actually process karta hai
+                       (toh inhe khush rakhna)
 
 
 ------------------------------------------------------------------------------
-ALL API ENDPOINTS (What the frontend can ask for)
+APPLICATION KI LIFE (Ek application ka poora safar)
 ------------------------------------------------------------------------------
 
-HEALTH CHECK
-  GET  /api/health          → Check if server is running
+  submitted          → Student ne form bhara. Ab wait.
+       ↓
+  under_review       → Admins dekh rahe hain. Ab aur wait.
+       ↓
+  partially_cleared  → Kuch departments ne haan bola, baaki abhi soch rahe hain
+       ↓
+  on_hold            → Kisi ne "hold" maar diya — kuch issue hai
+                       (library ki book missing? Sports ka racket nahi diya?)
+       ↓
+  fully_cleared      → Sabne approve kar diya! Accounts ko forward!
+       ↓
+  refund_processed   → Paisa aaya bhai! Transaction ID bhi mili!
 
-AUTH (Login / Register)
-  POST /api/auth/student/register   → Register a new student
-  POST /api/auth/student/login      → Student login
-  POST /api/auth/admin/login        → Admin login
-  GET  /api/auth/me                 → Get current logged-in user info
+  (rejected)         → Kisi bhi stage pe reject ho sakta hai. Life hai.
+
+Kaun si clearances chahiye:
+  - Library    → Hamesha chahiye (books return karo pehle)
+  - Sports     → Hamesha chahiye
+  - Department → Hamesha chahiye
+  - Hostel     → Sirf hostellers ke liye (day scholars — free pass!)
+  - Accounts   → Last step — ye process karenge actual refund
+
+
+------------------------------------------------------------------------------
+SAARE API ENDPOINTS (Frontend kya kya maang sakta hai)
+------------------------------------------------------------------------------
+
+SERVER THEEK HAI KYA?
+  GET  /api/health   → "Haan bhai chal raha hoon, tension mat lo"
+
+LOGIN / REGISTER
+  POST /api/auth/student/register   → Naya student account banao
+  POST /api/auth/student/login      → Student login (enrollment + password)
+  POST /api/auth/admin/login        → Admin login (email + password)
+  GET  /api/auth/me                 → "Bhai main kaun hoon?" — apni info lo
 
 STUDENT
-  GET   /api/student/profile        → View student profile
-  PATCH /api/student/profile        → Update mobile number, bank details
+  GET   /api/student/profile        → Apna profile dekho
+  PATCH /api/student/profile        → Mobile number ya bank details update karo
 
 APPLICATION
-  POST  /api/application/submit              → Submit refund application
-  GET   /api/application/my                  → View your own application
-  PATCH /api/application/bank-details        → Update bank details
-  GET   /api/application/all                 → (Admin) View all applications
-  GET   /api/application/stats/dashboard     → (Admin) View dashboard stats
-  GET   /api/application/:id                 → (Admin) View one application
-  PATCH /api/application/:id/clearance       → (Admin) Approve/reject clearance
-  PATCH /api/application/:id/refund          → (Accounts Admin) Process refund
+  POST  /api/application/submit          → Application submit karo
+  GET   /api/application/my              → Apni application dekho
+  PATCH /api/application/bank-details    → Bank details update karo
+  GET   /api/application/all             → (Admin) Sabki applications dekho
+  GET   /api/application/stats/dashboard → (Admin) Dashboard numbers dekho
+  GET   /api/application/:id             → (Admin) Ek specific application dekho
+  PATCH /api/application/:id/clearance   → (Admin) Clearance approve/reject karo
+  PATCH /api/application/:id/refund      → (Accounts Admin) Refund process karo
 
 ADMIN
-  GET   /api/admin/profile          → View admin profile
-  GET   /api/admin/all              → (Superadmin) View all admins
+  GET   /api/admin/profile   → Admin apna profile dekhe
+  GET   /api/admin/all       → (Sirf superadmin) Sabke admins ki list
 
 
 ------------------------------------------------------------------------------
-TOOLS AND TECHNOLOGIES USED
+TOOLS AUR TECHNOLOGIES (Aur kyun use kiye)
 ------------------------------------------------------------------------------
 
-RUNTIME & FRAMEWORK
-  Node.js         → The environment that runs JavaScript on the server side.
-                    (JavaScript was originally only for browsers; Node.js lets
-                    us use it on the server too.)
+SERVER CHALANE KE LIYE
+  Node.js
+    JavaScript sirf browser mein chalta tha pehle. Node.js ne bola "bhai
+    server pe bhi chalao" — aur duniya badal gayi. Yahan isi pe server hai.
 
-  Express.js      → A simple framework built on top of Node.js to make
-                    creating web servers and API routes much easier.
+  Express.js
+    Node.js ke upar ek framework. Bina iske har route ke liye khud se
+    HTTP parsing likhni padti. Express ne easy kar diya — "bas router
+    banao aur chal pado."
 
 DATABASE
-  MongoDB         → A NoSQL database that stores data as flexible JSON-like
-                    documents instead of strict tables (like Excel sheets).
-                    Great for storing student and application data.
+  MongoDB
+    Traditional databases mein data fixed tables mein rehta hai (Excel
+    jaisa). MongoDB mein flexible documents hain — nested clearances,
+    timelines, sab ek hi document mein fit ho jaata hai. Hamare use case
+    ke liye perfect.
 
-  MongoDB Atlas   → The cloud-hosted version of MongoDB. Our database lives
-                    here online instead of on a local computer.
+  MongoDB Atlas
+    MongoDB ka cloud wala version. Database kisi aur ki machine pe hai
+    (Amazon AWS ke servers pe), hamari local machine pe nahi. Free tier
+    mein kaam chala liya — broke student energy.
 
-  Mongoose        → A library that makes talking to MongoDB from Node.js
-                    easier. It lets us define schemas (data shapes/blueprints)
-                    and run queries in a clean way.
+  Mongoose
+    MongoDB se directly baat karna rough hota hai. Mongoose ne ORM
+    banaya — schema define karo, validations lagao, aur .save() likho
+    bas. Kaam ho gaya.
 
-AUTHENTICATION & SECURITY
-  JWT             → JSON Web Token. After login, the server gives the user
-(jsonwebtoken)      a "token" (like a digital ID card). The user sends this
-                    token with every future request so the server knows who
-                    they are without asking them to login again.
+LOGIN / SECURITY KE LIYE
+  JWT (jsonwebtoken)
+    Login hone pe server ek "token" deta hai — ek signed digital ID card
+    jaisi cheez. Har request pe ye token bhejo, server samajh jaata hai
+    "haan ye banda legitimate hai." Server ko kuch yaad nahi rakhna — token
+    mein sab info hoti hai. Clean aur scalable.
 
-  bcryptjs        → Used to hash (scramble) passwords before saving them to
-                    the database. So even if the database is hacked, actual
-                    passwords are never stored/visible.
+  bcryptjs
+    Passwords kabhi seedha database mein mat save karo — ye basics hai.
+    bcrypt password ko hash (scramble) kar deta hai. Agar kal database
+    bhi hack ho jaaye, attacker ke haath sirf "xK$2b$12$..." milega —
+    actual password nahi. Salt rounds 12 matlab extra secure.
 
-  helmet          → Adds extra security headers to every response, protecting
-                    against common web attacks automatically.
+  helmet
+    Ek line ka kaam — app.use(helmet()) — aur 10+ security headers
+    automatically lag jaate hain. Content-Security-Policy, X-Frame-Options,
+    sab. Basically ek security wala bodyguard free mein.
 
-  cors            → Controls which websites/frontends are allowed to talk to
-                    our backend. Blocks unauthorized sources.
+  cors
+    "Kaun kaun baat kar sakta hai hamare server se?" — ye cors decide
+    karta hai. Sirf hamare frontend URL ko allow kiya hai. Random
+    websites directly API call nahi maar sakti.
 
-  express-rate-limit → Limits how many requests a user can make in a short
-                    time. Prevents spam and brute-force attacks.
+  express-rate-limit
+    "Bhai 15 minute mein 100 se zyada request mat maar." Spam aur
+    brute-force attacks se bachne ke liye. Auth routes pe aur bhi
+    strict — 10 attempts hi milte hain.
 
-INPUT HANDLING & VALIDATION
-  express-validator → Checks and cleans up user inputs before processing.
-                    For example: "Is this a valid mobile number?",
-                    "Is this IFSC code in the right format?"
+INPUT CHECK KARNE KE LIYE
+  express-validator
+    User ne jo bheja wo sahi format mein hai ya nahi — ye check karta
+    hai. IFSC code galat? Mobile number 11 digit ka? Enrollment number
+    mein special characters? Sab pakad leta hai pehle hi.
 
-  dotenv          → Loads secret settings (like database passwords) from a
-                    .env file into the app, keeping secrets out of the code.
+  dotenv
+    .env file se secret values load karta hai code mein. Database
+    password seedha code mein likhoge toh GitHub pe push hoga aur
+    duniya padh legi. dotenv ne ye problem solve ki.
 
-LOGGING & DEVELOPMENT
-  morgan          → Logs every incoming HTTP request to the terminal.
-                    Helpful for debugging (seeing what requests are coming in).
+DEVELOPMENT KE LIYE
+  morgan
+    Har incoming request terminal mein print karta hai —
+    "GET /api/health 200 3ms" — debugging mein bahut kaam aata hai.
+    "Aayi request? Gayi? Kitne time mein?" — sab dikh jaata hai.
 
-  nodemon         → A development tool that automatically restarts the server
-                    whenever you save a code change. Saves time during coding.
+  nodemon
+    Code save kiya, server automatically restart. Bina iske har change
+    ke baad Ctrl+C aur npm run dev — too much pain. nodemon developer
+    ki jaan hai.
 
-  prettier        → A code formatter that auto-formats your code to look
-                    clean and consistent.
-
-
-------------------------------------------------------------------------------
-KEY DESIGN DECISIONS (Why we built it this way)
-------------------------------------------------------------------------------
-
-WHY SEPARATE controllers / services / repositories?
-  → It keeps the code organized. Controller handles the request, Service has
-    the business rules, Repository talks to the database. If something breaks,
-    it's easy to find where the problem is.
-
-WHY JWT for authentication (not sessions)?
-  → JWTs are stateless — the server doesn't need to remember anything. The
-    token itself carries the user info. This is better for scalability and
-    works well with separate frontend/backend setups.
-
-WHY MongoDB (not MySQL/PostgreSQL)?
-  → Our data (especially applications with nested clearances and timelines)
-    doesn't fit neatly into fixed table rows. MongoDB's flexible document
-    format is a natural fit for this kind of nested, varying data.
-
-WHY role-based access control?
-  → Different admins should only see and do things relevant to their
-    department. A library admin should NOT be able to process a refund.
-    Role-based control enforces these boundaries cleanly.
-
-WHY automatic status computation?
-  → Instead of manually updating the "overall status" every time a clearance
-    changes, the Application model automatically recalculates it. This
-    prevents bugs from inconsistent manual updates.
+  prettier
+    Code format karta hai automatically. Tab ya spaces ki ladai khatam.
+    Semicolons ka scene khatam. Sab consistent dikhta hai — team mein
+    koi bhi padhega toh readable lagega.
 
 
 ------------------------------------------------------------------------------
-RUNNING THE PROJECT
+DESIGN DECISIONS (Ye kyun banaya aisa — justify karo bhai)
 ------------------------------------------------------------------------------
 
-  npm run dev     → Start server in development mode (auto-restarts on change)
-  npm start       → Start server in production mode
-  npm run seed    → Fill the database with initial/test data
-  npm run format  → Auto-format all code files with prettier
+CONTROLLERS / SERVICES / REPOSITORIES ALAG KYUN?
+  Socho agar sab ek hi file mein hota — database query, business logic,
+  HTTP response — toh ek bug dhundna matlab poori file padhna. Alag karne
+  se agar bug hai toh pata hai kahan dhundna hai. Controller mein? Request
+  issue. Service mein? Logic issue. Repository mein? DB issue. Simple.
 
-Server runs on:  http://localhost:5000
-Frontend talks to this server from: http://localhost:5173
+JWT KYUN, SESSIONS KYUN NAHI?
+  Sessions mein server ko yaad rakhna padta hai "ye user logged in hai."
+  Multiple servers ho toh problem. JWT mein token khud hi sara data
+  carry karta hai — server stateless rehta hai. Frontend-backend alag
+  hain hamare — JWT fit baithta hai perfectly.
+
+MONGODB KYUN, SQL KYUN NAHI?
+  Application document mein clearances nested hain, timeline array hai,
+  bank details embedded hain. SQL table mein ye sab joins se laana padta
+  — complex aur slow. MongoDB mein ek document mein sab kuch — ek query
+  mein poori application. Our data is document-shaped, toh document DB
+  chose kiya.
+
+ROLE-BASED ACCESS KYUN?
+  Library admin ko refund process karne ka kya kaam? Accounts admin ko
+  library clearance approve karne ka kya kaam? Roles ne clear boundaries
+  bana di hain. Galti se bhi koi kuch aur nahi kar sakta.
+
+STATUS AUTOMATIC COMPUTE KYUN?
+  Manually overallStatus update karna matlab ek aur jagah bug ho sakti
+  hai. Pre-save hook automatically calculate karta hai — clearances update
+  karo, status khud update ho jaayega. DRY principle — Don't Repeat Yourself.
 
 
 ------------------------------------------------------------------------------
-ENVIRONMENT VARIABLES (.env file — keep this secret!)
+PROJECT KAISE CHALATE HAIN
 ------------------------------------------------------------------------------
 
-  PORT            → Which port the server runs on (default: 5000)
-  MONGODB_URI     → The URL to connect to the MongoDB Atlas database
-  JWT_SECRET      → A secret key used to sign/verify login tokens
-  JWT_EXPIRE      → How long a login token stays valid (default: 7 days)
-  NODE_ENV        → "development" or "production"
-  FRONTEND_URL    → The URL of the frontend app (for CORS settings)
+  npm run dev     → Development mode — code save karo, server restart
+  npm start       → Production mode — bas chalaao
+  npm run seed    → Database mein initial data daalo (pehli baar setup pe)
+  npm run format  → prettier se poora code format karo
+
+  Server: http://localhost:5000
+  Frontend: http://localhost:5173
 
 
+------------------------------------------------------------------------------
+.ENV FILE (Ye SECRET hai — kisi ko mat batao, GitHub pe mat daalo)
+------------------------------------------------------------------------------
+
+  PORT          → Server kis port pe chalega (default: 5000)
+  MONGODB_URI   → MongoDB Atlas ka connection URL
+  JWT_SECRET    → JWT sign karne ki secret key (strong rakhna)
+  JWT_EXPIRE    → Token kitne time tak valid rahega (default: 7 din)
+  NODE_ENV      → "development" ya "production"
+  FRONTEND_URL  → Frontend ka URL (CORS ke liye)
+
+
+==============================================================================
+            Bas itna hi hai. Ab "nahi samjha" mat bolna. - Backend
 ==============================================================================
