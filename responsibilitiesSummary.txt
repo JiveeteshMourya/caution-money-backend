@@ -1,0 +1,305 @@
+================================================================================
+       CAUTION MONEY REFUND SYSTEM — BACKEND TEAM RESPONSIBILITIES
+         Institute for Excellence in Higher Education (IEHE)
+================================================================================
+
+PROJECT OVERVIEW
+----------------
+A full-stack web application enabling students to apply for caution money refunds
+after course completion. The backend is a RESTful API built with Node.js, Express,
+and MongoDB, featuring a multi-role admin clearance workflow.
+
+Tech Stack: Node.js, Express.js, MongoDB (Mongoose), JWT, BCrypt, Express-Validator
+Architecture: MVC + Repository + Service pattern (modular src/ structure)
+
+================================================================================
+TEAM MEMBERS & RESPONSIBILITIES
+================================================================================
+
+--------------------------------------------------------------------------------
+1. JIVEETESH  |  Tech Lead & Core Architect
+--------------------------------------------------------------------------------
+ROLE: Project Architect, Database Modeller, Core Infrastructure Lead
+
+RESPONSIBILITIES:
+  - Led all initial research, ideation, and project scoping
+  - Designed the overall system architecture (MVC + Repository + Service layers)
+  - Chose the technology stack and project tooling
+  - Designed and modelled all three core database schemas:
+      * Student Schema (src/models/Student.js)
+          - Enrollment number format, department enums, bank details sub-schema
+          - Security fields: loginAttempts, lockUntil, OTP fields
+          - Instance methods: comparePassword(), isLocked(), incLoginAttempts()
+      * Admin Schema (src/models/Admin.js)
+          - Role enum: superadmin, library, sports, hostel, department, accounts
+          - Security fields: loginAttempts, lockUntil
+          - Instance methods: comparePassword(), isLocked()
+      * Application Schema (src/models/Application.js)
+          - 5-department clearance sub-schema (library, sports, hostel, department, accounts)
+          - Timeline audit trail array
+          - Pre-save hook for automatic overallStatus computation
+          - Application ID generation (IEHE-[timestamp] format)
+  - Set up the main server entry point (server.js):
+      * Middleware stack: Helmet, CORS, Morgan, body parser
+      * Rate limiting configuration (general: 100/15min, auth: 10/15min)
+      * Route mounting and health check endpoint (/api/health)
+      * Centralized error handling integration
+  - Defined all application constants:
+      * src/constants/departments.js  — DEPARTMENTS, CLEARANCE_TYPES, CLEARANCE_ROLE_MAP
+      * src/constants/statuses.js     — APPLICATION_STATUS, CLEARANCE_STATUS, REFUND_STATUS
+      * src/constants/roles.js        — ADMIN_ROLES, USER_TYPES
+  - Established the modular folder structure across src/
+
+KEY FILES:
+  src/models/Student.js | src/models/Admin.js | src/models/Application.js
+  src/constants/departments.js | src/constants/statuses.js | src/constants/roles.js
+  server.js
+
+--------------------------------------------------------------------------------
+2. DHEERAJ  |  Authentication System Developer
+--------------------------------------------------------------------------------
+ROLE: Auth Backend Developer
+
+RESPONSIBILITIES:
+  - Built the complete authentication system for both students and admins
+  - Implemented student registration flow:
+      * Enrollment number uniqueness check
+      * Password hashing (BCrypt, 12 salt rounds)
+      * JWT token generation on successful registration
+  - Implemented student login with account lockout enforcement
+  - Implemented admin login with active-status check
+  - Developed the auth service layer (src/services/auth.service.js):
+      * registerStudent(), loginStudent(), loginAdmin()
+  - Developed the auth controller (src/controllers/auth.controller.js):
+      * registerStudent(), loginStudent(), loginAdmin(), getMe()
+  - Defined auth API routes (src/routes/auth.js):
+      * POST /api/auth/student/register
+      * POST /api/auth/student/login
+      * POST /api/auth/admin/login
+      * GET  /api/auth/me
+
+KEY FILES:
+  src/services/auth.service.js | src/controllers/auth.controller.js
+  src/routes/auth.js | src/utils/tokenHelper.js
+
+--------------------------------------------------------------------------------
+3. AISHWARY  |  Student Module Developer
+--------------------------------------------------------------------------------
+ROLE: Student Profile & Application Submission Developer
+
+RESPONSIBILITIES:
+  - Built the student profile management module:
+      * Get profile endpoint with password exclusion
+      * Update profile — restricted to only allowed fields (mobileNumber, bankDetails, passoutYear)
+  - Developed student service (src/services/student.service.js):
+      * getProfile(), updateProfile()
+  - Developed student controller (src/controllers/student.controller.js):
+      * getProfile(), updateProfile()
+  - Defined student API routes (src/routes/student.js):
+      * GET   /api/student/profile
+      * PATCH /api/student/profile
+  - Implemented the student-facing application submission flow:
+      * POST /api/application/submit — creates application with auto-generated applicationId
+      * GET  /api/application/my    — fetch student's own application
+      * PATCH /api/application/bank-details — update bank details (blocked after refund)
+  - Set initial clearance states and first timeline entry on submission
+  - Implemented bank details update guard (cannot update after refund_processed)
+  - Built the student repository (src/repositories/student.repository.js):
+      * findByEnrollment(), findByEnrollmentWithPassword(), findById()
+      * create(), updateById(), updateLoginSuccess()
+
+KEY FILES:
+  src/services/student.service.js | src/controllers/student.controller.js
+  src/routes/student.js | src/repositories/student.repository.js
+  src/services/application.service.js (submitApplication, getMyApplication, updateBankDetails)
+
+--------------------------------------------------------------------------------
+4. DHRUV  |  Clearance Workflow Developer
+--------------------------------------------------------------------------------
+ROLE: Multi-Department Clearance Engine Developer
+
+RESPONSIBILITIES:
+  - Engineered the core clearance workflow — the most complex business logic in the project
+  - Implemented updateClearance() in application service:
+      * Role-based clearance access: each admin role can only update their clearance type
+      * Validates clearance type against CLEARANCE_ROLE_MAP
+      * Prevents unauthorized cross-department updates
+      * Records admin name and timestamp on each clearance update
+      * Appends a new timeline entry for every clearance change
+      * Auto-forwards application to accounts when all other departments clear
+  - Implemented the overallStatus auto-computation logic (pre-save hook strategy)
+  - Handled all clearance statuses: pending, cleared, hold, na
+  - Built the PATCH /api/application/:id/clearance endpoint
+  - Contributed to the application repository for clearance queries
+  - Built the application repository (src/repositories/application.repository.js):
+      * findByStudentId(), findByApplicationId(), findAll(), countDocuments(), create()
+
+KEY FILES:
+  src/services/application.service.js (updateClearance)
+  src/controllers/application.controller.js (updateClearance)
+  src/routes/application.js (clearance route)
+  src/repositories/application.repository.js
+
+--------------------------------------------------------------------------------
+5. ANUJ  |  Admin Management Developer
+--------------------------------------------------------------------------------
+ROLE: Admin Module & Database Seeding Developer
+
+RESPONSIBILITIES:
+  - Built the admin management module:
+      * Admin profile retrieval
+      * Superadmin-only: list all admin accounts
+  - Developed admin service (src/services/admin.service.js):
+      * getProfile(), getAllAdmins()
+  - Developed admin controller (src/controllers/admin.controller.js):
+      * getProfile(), getAllAdmins()
+  - Defined admin routes (src/routes/admin.js):
+      * GET /api/admin/profile  (admin-protected)
+      * GET /api/admin/all      (superadmin-only)
+  - Developed the database seeding script (src/config/seed.js):
+      * Seeds 7 default admin accounts with hashed passwords
+      * Roles: superadmin, library, sports, hostel, CSE HOD, IT HOD, accounts
+      * Run via `npm run seed`
+  - Built the admin repository (src/repositories/admin.repository.js):
+      * findByEmailWithPassword(), findById(), findAll()
+      * updateLoginSuccess(), incrementLoginAttempts()
+
+KEY FILES:
+  src/services/admin.service.js | src/controllers/admin.controller.js
+  src/routes/admin.js | src/repositories/admin.repository.js
+  src/config/seed.js
+
+--------------------------------------------------------------------------------
+6. AYUSH  |  Security & Middleware Developer
+--------------------------------------------------------------------------------
+ROLE: Security Infrastructure Developer
+
+RESPONSIBILITIES:
+  - Implemented the core authentication middleware (src/middleware/auth.js):
+      * protect()        — JWT token extraction and verification, populates req.user
+      * protectStudent() — Ensures route is accessible only to students
+      * protectAdmin()   — Ensures route is accessible only to admins
+      * restrictTo()     — Fine-grained role-based access control (RBAC)
+  - Configured Helmet.js for security headers (CSP, X-Frame-Options, HSTS, etc.)
+  - Configured CORS with frontend URL from environment
+  - Set up two-tier rate limiting:
+      * General API: 100 requests per 15 minutes per IP
+      * Auth endpoints: 10 requests per 15 minutes (stricter to prevent brute force)
+  - Implemented request body size limiting (10KB max)
+  - Set up Morgan HTTP request logging (dev format)
+  - Configured environment validation (src/config/env.js):
+      * Validates required env vars at startup — exits if any are missing
+  - Configured MongoDB connection (src/config/db.js)
+
+KEY FILES:
+  src/middleware/auth.js | src/config/env.js | src/config/db.js
+  server.js (middleware configuration sections)
+
+--------------------------------------------------------------------------------
+7. AJAY  |  Input Validation & Error Handling Developer
+--------------------------------------------------------------------------------
+ROLE: Validation Layer & Error Management Developer
+
+RESPONSIBILITIES:
+  - Built the complete input validation layer using express-validator:
+      * Auth validators (src/validators/auth.validators.js):
+          - studentRegisterRules: enrollment (8-14 alphanumeric), name (2-100),
+            mobile (Indian format: 6-9 + 9 digits), department enum, DOB, password min-8
+          - studentLoginRules: enrollment + password presence
+          - adminLoginRules: valid email + password presence
+      * Application validators (src/validators/application.validators.js):
+          - submitApplicationRules: bank holder name, account number (9-18 digits),
+            IFSC code (4 letters + 0 + 6 alphanumeric), bank name, passout year (2000-2030)
+          - updateClearanceRules: clearance type enum, status enum, optional reason/remarks
+      * Validation middleware (src/validators/validate.js):
+          - validate() — extracts validation errors and returns 400 with error list
+  - Built the centralized error handling system:
+      * Custom error classes (src/errors/AppError.js):
+          - AppError (base), NotFoundError (404), ConflictError (409),
+            ForbiddenError (403), ValidationError (400), UnauthorizedError (401)
+      * Global error handler middleware (src/middleware/errorHandler.js):
+          - Distinguishes operational vs unexpected errors
+          - Returns stack traces only in development
+  - Applied validators as middleware chains on all routes
+
+KEY FILES:
+  src/validators/auth.validators.js | src/validators/application.validators.js
+  src/validators/validate.js | src/errors/AppError.js
+  src/middleware/errorHandler.js
+
+--------------------------------------------------------------------------------
+8. SUMIT  |  Refund Processing & Analytics Developer
+--------------------------------------------------------------------------------
+ROLE: Refund Engine & Dashboard Analytics Developer
+
+RESPONSIBILITIES:
+  - Implemented the refund processing engine:
+      * processRefund() in application service — the final step of the workflow
+          - Guards: requires fully_cleared status before processing
+          - Generates unique transaction ID (TXN-[timestamp]-[random])
+          - Updates refund amount (default ₹5000), refundStatus, refundProcessedAt
+          - Appends refund timeline entry
+          - Restricted to accounts/superadmin roles only
+      * PATCH /api/application/:id/refund endpoint
+  - Built the admin dashboard analytics:
+      * getDashboardStats() — aggregates across all applications:
+          - Total applications, submitted, under review, cleared, refunded, on hold counts
+          - Total refund amount disbursed
+      * GET /api/application/stats/dashboard endpoint
+  - Built the admin application listing with advanced filtering:
+      * getAllApplications() — paginated list with:
+          - Filter by overallStatus
+          - Filter by department
+          - Text search across enrollmentNumber, studentName, applicationId
+          - Department admin scope enforcement (sees only own dept applications)
+      * GET /api/application/all endpoint
+  - Built the application detail endpoint:
+      * getApplicationById() — full application with populated student data
+      * GET /api/application/:id endpoint
+  - Developed the response utility (src/utils/response.js):
+      * sendSuccess() — standardizes all API success responses
+
+KEY FILES:
+  src/services/application.service.js (processRefund, getDashboardStats, getAllApplications, getApplicationById)
+  src/controllers/application.controller.js (processRefund, getDashboardStats, getAllApplications, getApplicationById)
+  src/routes/application.js | src/utils/response.js
+
+================================================================================
+COLLABORATION & SHARED OWNERSHIP
+================================================================================
+
+  - All team members followed the unified coding conventions set by Jiveetesh
+  - Jiveetesh reviewed and merged contributions into the modular src/ structure
+  - Shared ownership: src/routes/application.js (Aishwary, Dhruv, Sumit)
+  - Shared ownership: src/services/application.service.js (Aishwary, Dhruv, Sumit)
+  - Shared ownership: src/controllers/application.controller.js (Aishwary, Dhruv, Sumit)
+
+================================================================================
+API ENDPOINT SUMMARY
+================================================================================
+
+  Auth Routes (src/routes/auth.js)
+    POST   /api/auth/student/register    — Dheeraj
+    POST   /api/auth/student/login       — Dheeraj
+    POST   /api/auth/admin/login         — Dheeraj
+    GET    /api/auth/me                  — Dheeraj
+
+  Student Routes (src/routes/student.js)
+    GET    /api/student/profile          — Aishwary
+    PATCH  /api/student/profile          — Aishwary
+
+  Admin Routes (src/routes/admin.js)
+    GET    /api/admin/profile            — Anuj
+    GET    /api/admin/all                — Anuj
+
+  Application Routes (src/routes/application.js)
+    POST   /api/application/submit           — Aishwary
+    GET    /api/application/my               — Aishwary
+    PATCH  /api/application/bank-details     — Aishwary
+    GET    /api/application/all              — Sumit
+    GET    /api/application/stats/dashboard  — Sumit
+    GET    /api/application/:id              — Sumit
+    PATCH  /api/application/:id/clearance    — Dhruv
+    PATCH  /api/application/:id/refund       — Sumit
+
+================================================================================
