@@ -1,54 +1,65 @@
 ================================================================================
-       CAUTION MONEY REFUND SYSTEM — BACKEND TEAM RESPONSIBILITIES
-         Institute for Excellence in Higher Education (IEHE)
+       CAUTION MONEY REFUND SYSTEM — KAUN KYA KIYA BACKEND MEIN
+                 (Sab ne kiya, kisi ne nahi kiya, classic team)
 ================================================================================
 
-PROJECT OVERVIEW
-----------------
-A full-stack web application enabling students to apply for caution money refunds
-after course completion. The backend is a RESTful API built with Node.js, Express,
-and MongoDB, featuring a multi-role admin clearance workflow.
+PROJECT KA SCENE
+-----------------
+Bhai basically ek full-stack web app hai jisme students apna caution money
+wapas maang sakte hain after college khatam hone ke baad. Backend mein
+Node.js, Express aur MongoDB use kiya — classic "jo sab karte hain wahi karo"
+stack. Multi-role admin clearance workflow hai, matlab 5 departments khush
+hone chahiye tabhi paisa milega. Bohot hi "sarkari" feel hai but digitally.
 
-Tech Stack: Node.js, Express.js, MongoDB (Mongoose), JWT, BCrypt, Express-Validator
-Architecture: MVC + Repository + Service pattern (modular src/ structure)
+Tech Stack : Node.js, Express.js, MongoDB (Mongoose), JWT, BCrypt
+Architecture: MVC + Repository + Service (fancy bolne ke liye, basically
+              folders ke andar folders ke andar folders)
 
 ================================================================================
-TEAM MEMBERS & RESPONSIBILITIES
+TEAM KA BREAKDOWN — KAUN KAHAN THA
 ================================================================================
 
 --------------------------------------------------------------------------------
-1. JIVEETESH  |  Tech Lead & Core Architect
+1. JIVEETESH  |  "Main toh pehle se jaanta tha" guy  |  Tech Lead
 --------------------------------------------------------------------------------
 ROLE: Project Architect, Database Modeller, Core Infrastructure Lead
 
-RESPONSIBILITIES:
-  - Led all initial research, ideation, and project scoping
-  - Designed the overall system architecture (MVC + Repository + Service layers)
-  - Chose the technology stack and project tooling
-  - Designed and modelled all three core database schemas:
+KYA KIYA:
+  - Poora idea uska tha. Research, ideation, architecture — sab akela.
+    Literally "bhai ye karte hain" bolke project shuru kiya aur baaki sab
+    ko kaam de diya. CEO energy.
+  - System ka poora structure design kiya — MVC + Repository + Service pattern.
+    Baaki log ek folder banate, isko pura galaxy-brained architecture banana tha.
+  - Teen database schemas design kiye (yahi toh asli nerd work hai):
+
       * Student Schema (src/models/Student.js)
-          - Enrollment number format, department enums, bank details sub-schema
-          - Security fields: loginAttempts, lockUntil, OTP fields
-          - Instance methods: comparePassword(), isLocked(), incLoginAttempts()
+          - Enrollment number, department, bank details, DOB — sab plan kiya
+          - Security fields bhi — loginAttempts, lockUntil
+            (5 baar wrong password? 2 ghante ke liye ban. Strict hai yaar.)
+          - Methods: comparePassword(), isLocked(), incLoginAttempts()
+
       * Admin Schema (src/models/Admin.js)
-          - Role enum: superadmin, library, sports, hostel, department, accounts
-          - Security fields: loginAttempts, lockUntil
-          - Instance methods: comparePassword(), isLocked()
+          - 6 types ke admin: superadmin, library, sports, hostel,
+            department, accounts. Hierarchy hai yahan bhi, barabar hai.
+          - Admins ko bhi same security treatment — no VIP exemption
+
       * Application Schema (src/models/Application.js)
-          - 5-department clearance sub-schema (library, sports, hostel, department, accounts)
-          - Timeline audit trail array
-          - Pre-save hook for automatic overallStatus computation
+          - 5 departments ki clearance ka pura system ek schema mein fit kar diya
+          - Timeline array — audit trail, matlab koi bhi "maine nahi kiya"
+            nahi bol sakta. Receipts hain sab ki.
+          - Pre-save hook jo automatically overall status update karta hai.
+            Schema khud sochta hai. Literally smarter than us.
           - Application ID generation (IEHE-[timestamp] format)
-  - Set up the main server entry point (server.js):
-      * Middleware stack: Helmet, CORS, Morgan, body parser
-      * Rate limiting configuration (general: 100/15min, auth: 10/15min)
-      * Route mounting and health check endpoint (/api/health)
-      * Centralized error handling integration
-  - Defined all application constants:
-      * src/constants/departments.js  — DEPARTMENTS, CLEARANCE_TYPES, CLEARANCE_ROLE_MAP
-      * src/constants/statuses.js     — APPLICATION_STATUS, CLEARANCE_STATUS, REFUND_STATUS
-      * src/constants/roles.js        — ADMIN_ROLES, USER_TYPES
-  - Established the modular folder structure across src/
+
+  - server.js setup kiya — pura middleware stack, rate limiting, health check,
+    centralized error handling. Foundation rakhi poori building ki.
+  - Saare constants define kiye:
+      * departments.js  — DEPARTMENTS, CLEARANCE_TYPES, CLEARANCE_ROLE_MAP
+      * statuses.js     — APPLICATION_STATUS, CLEARANCE_STATUS, REFUND_STATUS
+      * roles.js        — ADMIN_ROLES, USER_TYPES
+    (basically poori duniya ki vocabulary project ke liye define ki)
+  - src/ ka modular folder structure establish kiya — baaki sab ko
+    andhere mein roshni di. Unsung hero moment.
 
 KEY FILES:
   src/models/Student.js | src/models/Admin.js | src/models/Application.js
@@ -56,57 +67,51 @@ KEY FILES:
   server.js
 
 --------------------------------------------------------------------------------
-2. DHEERAJ  |  Authentication System Developer
+2. DHEERAJ  |  "Login nahi hua toh kuch nahi hoga" guy  |  Auth Developer
 --------------------------------------------------------------------------------
-ROLE: Auth Backend Developer
+ROLE: Authentication ka baap. Gatekeeper. Bouncer of the backend.
 
-RESPONSIBILITIES:
-  - Built the complete authentication system for both students and admins
-  - Implemented student registration flow:
-      * Enrollment number uniqueness check
-      * Password hashing (BCrypt, 12 salt rounds)
-      * JWT token generation on successful registration
-  - Implemented student login with account lockout enforcement
-  - Implemented admin login with active-status check
-  - Developed the auth service layer (src/services/auth.service.js):
-      * registerStudent(), loginStudent(), loginAdmin()
-  - Developed the auth controller (src/controllers/auth.controller.js):
-      * registerStudent(), loginStudent(), loginAdmin(), getMe()
-  - Defined auth API routes (src/routes/auth.js):
-      * POST /api/auth/student/register
-      * POST /api/auth/student/login
-      * POST /api/auth/admin/login
-      * GET  /api/auth/me
+KYA KIYA:
+  - Poora login/register system banaya — student ke liye bhi, admin ke liye bhi.
+    No entry without token, period.
+  - Student registration flow implement kiya:
+      * Enrollment number unique check — duplicate? Bhai pehle se ho tum.
+      * Password BCrypt se hash (12 salt rounds) — raw password database mein?
+        Never. That's not very sigma of you.
+      * JWT token generate on success — welcome to the club
+  - Student login mein account lockout enforce kiya
+    (5 baar galat password? Bhai 2 ghante rest kar, touch grass)
+  - Admin login mein isActive check — inactive admin? Door band hai.
+  - Auth service, controller, routes — teen files, ek banda, zero excuses.
+
+  Routes jo banaye:
+      POST /api/auth/student/register  — "Main aagaya hoon bhai"
+      POST /api/auth/student/login     — "Andar jaane do please"
+      POST /api/auth/admin/login       — "Main admin hoon, mujhe jaanta nahi kya"
+      GET  /api/auth/me                — "Main kaun hoon? existential crisis"
 
 KEY FILES:
   src/services/auth.service.js | src/controllers/auth.controller.js
   src/routes/auth.js | src/utils/tokenHelper.js
 
 --------------------------------------------------------------------------------
-3. AISHWARY  |  Student Module Developer
+3. AISHWARY  |  "Student ka true bestie" guy  |  Student Module Developer
 --------------------------------------------------------------------------------
 ROLE: Student Profile & Application Submission Developer
 
-RESPONSIBILITIES:
-  - Built the student profile management module:
-      * Get profile endpoint with password exclusion
-      * Update profile — restricted to only allowed fields (mobileNumber, bankDetails, passoutYear)
-  - Developed student service (src/services/student.service.js):
-      * getProfile(), updateProfile()
-  - Developed student controller (src/controllers/student.controller.js):
-      * getProfile(), updateProfile()
-  - Defined student API routes (src/routes/student.js):
-      * GET   /api/student/profile
-      * PATCH /api/student/profile
-  - Implemented the student-facing application submission flow:
-      * POST /api/application/submit — creates application with auto-generated applicationId
-      * GET  /api/application/my    — fetch student's own application
-      * PATCH /api/application/bank-details — update bank details (blocked after refund)
-  - Set initial clearance states and first timeline entry on submission
-  - Implemented bank details update guard (cannot update after refund_processed)
-  - Built the student repository (src/repositories/student.repository.js):
-      * findByEnrollment(), findByEnrollmentWithPassword(), findById()
-      * create(), updateById(), updateLoginSuccess()
+KYA KIYA:
+  - Student profile GET aur UPDATE banaya.
+    Update mein sirf allowed fields — bank details, mobile, passout year.
+    Naam nahi badal sakta. Hum jaante hain tu kaun hai bhai.
+  - Student-facing application flow build kiya — ye wala flow toh seedha
+    student ke haath mein hai:
+      * POST /api/application/submit     — "Le bhai, ye raha mera application"
+      * GET  /api/application/my        — "Mera status kya hai abhi?"
+      * PATCH /api/application/bank-details — "Ek baar aur mauka do, galat tha"
+  - Bank details update pe guard lagaya — refund ho gaya?
+    Ab bank details nahi badle. Too late bestie, paisa ja chuka.
+  - Pehla timeline entry submission pe daala — audit trail ka inauguration
+  - Student repository bhi build kiya — database se student data laane ka kaam
 
 KEY FILES:
   src/services/student.service.js | src/controllers/student.controller.js
@@ -114,25 +119,28 @@ KEY FILES:
   src/services/application.service.js (submitApplication, getMyApplication, updateBankDetails)
 
 --------------------------------------------------------------------------------
-4. DHRUV  |  Clearance Workflow Developer
+4. DHRUV  |  "5 departments ko razi karo" guy  |  Clearance Workflow Dev
 --------------------------------------------------------------------------------
 ROLE: Multi-Department Clearance Engine Developer
+      (Sabse complex kaam, sabse kam log jaante — classic dev life)
 
-RESPONSIBILITIES:
-  - Engineered the core clearance workflow — the most complex business logic in the project
-  - Implemented updateClearance() in application service:
-      * Role-based clearance access: each admin role can only update their clearance type
-      * Validates clearance type against CLEARANCE_ROLE_MAP
-      * Prevents unauthorized cross-department updates
-      * Records admin name and timestamp on each clearance update
-      * Appends a new timeline entry for every clearance change
-      * Auto-forwards application to accounts when all other departments clear
-  - Implemented the overallStatus auto-computation logic (pre-save hook strategy)
-  - Handled all clearance statuses: pending, cleared, hold, na
-  - Built the PATCH /api/application/:id/clearance endpoint
-  - Contributed to the application repository for clearance queries
-  - Built the application repository (src/repositories/application.repository.js):
-      * findByStudentId(), findByApplicationId(), findAll(), countDocuments(), create()
+KYA KIYA:
+  - Clearance workflow implement kiya — project ka sabse juicy aur painful logic.
+    Ye wala code likhte waqt Dhruv ko 3 baar existential crisis aayi hogi.
+  - updateClearance() implement kiya:
+      * Library admin sirf library clear karega, hostel admin hostel —
+        koi cross-department snooping nahi. Apni lane mein raho.
+      * Clearance type CLEARANCE_ROLE_MAP se validate hoti hai.
+        Random role se random clearance? Nahi chalega.
+      * Har update pe admin ka naam aur timestamp record — receipts mandatory.
+      * Har change pe ek naya timeline entry — full audit trail, no escape.
+      * Jab saare departments clear ho jaate — automatically accounts ko
+        forward. Magical? Nahi, Dhruv ne likha hai.
+  - overallStatus auto-compute strategy — schema pre-save hook se integrate kiya
+  - Application repository bhi banaya — sab ka data access layer
+
+  Route:
+      PATCH /api/application/:id/clearance — "Cleared hai, jaane do ab"
 
 KEY FILES:
   src/services/application.service.js (updateClearance)
@@ -141,28 +149,25 @@ KEY FILES:
   src/repositories/application.repository.js
 
 --------------------------------------------------------------------------------
-5. ANUJ  |  Admin Management Developer
+5. ANUJ  |  "Admin ka bhi koi hona chahiye" guy  |  Admin Module Developer
 --------------------------------------------------------------------------------
 ROLE: Admin Module & Database Seeding Developer
 
-RESPONSIBILITIES:
-  - Built the admin management module:
-      * Admin profile retrieval
-      * Superadmin-only: list all admin accounts
-  - Developed admin service (src/services/admin.service.js):
-      * getProfile(), getAllAdmins()
-  - Developed admin controller (src/controllers/admin.controller.js):
-      * getProfile(), getAllAdmins()
-  - Defined admin routes (src/routes/admin.js):
-      * GET /api/admin/profile  (admin-protected)
-      * GET /api/admin/all      (superadmin-only)
-  - Developed the database seeding script (src/config/seed.js):
-      * Seeds 7 default admin accounts with hashed passwords
-      * Roles: superadmin, library, sports, hostel, CSE HOD, IT HOD, accounts
-      * Run via `npm run seed`
-  - Built the admin repository (src/repositories/admin.repository.js):
-      * findByEmailWithPassword(), findById(), findAll()
-      * updateLoginSuccess(), incrementLoginAttempts()
+KYA KIYA:
+  - Admin management module banaya:
+      * Admin apna profile dekh sake — basic dignity
+      * Superadmin ke liye: saare admins ki list. Power trip fully authorized.
+  - Admin service, controller, routes — teeno handle kiya, no outsourcing.
+  - Database seeding script likha (src/config/seed.js) — ye wala toh MVP hai:
+      * 7 default admin accounts create kiye with hashed passwords
+      * Superadmin, Library, Sports, Hostel, CSE HOD, IT HOD, Accounts
+      * `npm run seed` — ek command, sab ready. Bhai ne zindagi aasaan kar di.
+      * Bina is script ke pehle din log kuch karte hi nahi.
+  - Admin repository build kiya — database se admin data laana
+
+  Routes:
+      GET /api/admin/profile  — "Mera profile dikhao" (admin only)
+      GET /api/admin/all      — "Sab ka profile dikhao" (superadmin only, VIP)
 
 KEY FILES:
   src/services/admin.service.js | src/controllers/admin.controller.js
@@ -170,57 +175,57 @@ KEY FILES:
   src/config/seed.js
 
 --------------------------------------------------------------------------------
-6. AYUSH  |  Security & Middleware Developer
+6. AYUSH  |  "Koi hack nahi karega mere rehte" guy  |  Security Developer
 --------------------------------------------------------------------------------
-ROLE: Security Infrastructure Developer
+ROLE: Backend ka Bouncer. Security Infrastructure ka Boss.
 
-RESPONSIBILITIES:
-  - Implemented the core authentication middleware (src/middleware/auth.js):
-      * protect()        — JWT token extraction and verification, populates req.user
-      * protectStudent() — Ensures route is accessible only to students
-      * protectAdmin()   — Ensures route is accessible only to admins
-      * restrictTo()     — Fine-grained role-based access control (RBAC)
-  - Configured Helmet.js for security headers (CSP, X-Frame-Options, HSTS, etc.)
-  - Configured CORS with frontend URL from environment
-  - Set up two-tier rate limiting:
-      * General API: 100 requests per 15 minutes per IP
-      * Auth endpoints: 10 requests per 15 minutes (stricter to prevent brute force)
-  - Implemented request body size limiting (10KB max)
-  - Set up Morgan HTTP request logging (dev format)
-  - Configured environment validation (src/config/env.js):
-      * Validates required env vars at startup — exits if any are missing
-  - Configured MongoDB connection (src/config/db.js)
+KYA KIYA:
+  - Core auth middleware banaya (src/middleware/auth.js):
+      * protect()        — JWT verify karo, req.user populate karo. No token? Bye.
+      * protectStudent() — Sirf student. Admin ne try kiya? Nahi chalega.
+      * protectAdmin()   — Sirf admin. Student ne try kiya? Bhai wrong floor.
+      * restrictTo()     — Specific role? Specific kaam. Koi jugaad nahi.
+  - Helmet.js lagaya — security headers automatic. Hacker dekhe toh bhage.
+  - CORS configure kiya — sirf frontend URL se baat karega. Stranger danger real hai.
+  - Two-tier rate limiting set kiya:
+      * General API: 100 requests/15 min per IP — normal usage ke liye theek hai
+      * Auth endpoints: sirf 10/15 min — brute force karne ki soch bhi mat
+  - Request body 10KB se zyada? Hard reject. Server buffet nahi hai bhai.
+  - Morgan HTTP logging — sab record ho raha hai. Behave karo.
+  - env.js — startup pe required env vars check. Koi missing? Process exit.
+    No env, no party. Zero tolerance.
+  - db.js — MongoDB connection. Simple but iske bina sab kuch zero hai.
 
 KEY FILES:
   src/middleware/auth.js | src/config/env.js | src/config/db.js
-  server.js (middleware configuration sections)
+  server.js (middleware configuration wale sections)
 
 --------------------------------------------------------------------------------
-7. AJAY  |  Input Validation & Error Handling Developer
+7. AJAY  |  "Ye data galat hai, nahi dunga" guy  |  Validation & Error Dev
 --------------------------------------------------------------------------------
-ROLE: Validation Layer & Error Management Developer
+ROLE: Data ka Gatekeeper. Error ka Therapist.
 
-RESPONSIBILITIES:
-  - Built the complete input validation layer using express-validator:
+KYA KIYA:
+  - Poora input validation layer build kiya express-validator se:
       * Auth validators (src/validators/auth.validators.js):
-          - studentRegisterRules: enrollment (8-14 alphanumeric), name (2-100),
-            mobile (Indian format: 6-9 + 9 digits), department enum, DOB, password min-8
-          - studentLoginRules: enrollment + password presence
-          - adminLoginRules: valid email + password presence
+          - Enrollment: 8-14 alphanumeric only. "abc!@#" wala nahi chalega.
+          - Mobile: Indian format — 6/7/8/9 se shuru, exactly 10 digits.
+            "+91-random" chalane ki koshish? Caught.
+          - Password: minimum 8 characters. "1234" try kiya? Respect lost.
+          - Department: enum mein hona chahiye. "Kuch Bhi Dept" exist nahi karta.
       * Application validators (src/validators/application.validators.js):
-          - submitApplicationRules: bank holder name, account number (9-18 digits),
-            IFSC code (4 letters + 0 + 6 alphanumeric), bank name, passout year (2000-2030)
-          - updateClearanceRules: clearance type enum, status enum, optional reason/remarks
-      * Validation middleware (src/validators/validate.js):
-          - validate() — extracts validation errors and returns 400 with error list
-  - Built the centralized error handling system:
-      * Custom error classes (src/errors/AppError.js):
-          - AppError (base), NotFoundError (404), ConflictError (409),
-            ForbiddenError (403), ValidationError (400), UnauthorizedError (401)
-      * Global error handler middleware (src/middleware/errorHandler.js):
-          - Distinguishes operational vs unexpected errors
-          - Returns stack traces only in development
-  - Applied validators as middleware chains on all routes
+          - IFSC: 4 letters + 0 + 6 alphanumeric. Exact. No approximations.
+          - Account number: 9-18 digits. Google karo apna account number pehle.
+          - Passout year: 2000-2030. Time traveller? Nahi maante hum.
+  - Custom error classes banaye (src/errors/AppError.js):
+      * AppError (base), NotFoundError (404 — ye cheez hai hi nahi),
+        ConflictError (409 — ye toh pehle se hai bhai),
+        ForbiddenError (403 — teri aukaat nahi),
+        ValidationError (400 — galat data), UnauthorizedError (401 — kon hai tu)
+  - Global error handler middleware (src/middleware/errorHandler.js):
+      * Development mein full stack trace — debug karo, rona mat
+      * Production mein clean message — user ko anxiety mat do, uska fault nahi
+  - Validators ko middleware chain ke roop mein routes pe apply kiya
 
 KEY FILES:
   src/validators/auth.validators.js | src/validators/application.validators.js
@@ -228,71 +233,75 @@ KEY FILES:
   src/middleware/errorHandler.js
 
 --------------------------------------------------------------------------------
-8. SUMIT  |  Refund Processing & Analytics Developer
+8. SUMIT  |  "Paisa kab milega bhai" guy  |  Refund & Analytics Developer
 --------------------------------------------------------------------------------
-ROLE: Refund Engine & Dashboard Analytics Developer
+ROLE: Refund Engine Developer. Dashboard ka Architect. Endgame wala banda.
 
-RESPONSIBILITIES:
-  - Implemented the refund processing engine:
-      * processRefund() in application service — the final step of the workflow
-          - Guards: requires fully_cleared status before processing
-          - Generates unique transaction ID (TXN-[timestamp]-[random])
-          - Updates refund amount (default ₹5000), refundStatus, refundProcessedAt
-          - Appends refund timeline entry
-          - Restricted to accounts/superadmin roles only
-      * PATCH /api/application/:id/refund endpoint
-  - Built the admin dashboard analytics:
-      * getDashboardStats() — aggregates across all applications:
-          - Total applications, submitted, under review, cleared, refunded, on hold counts
-          - Total refund amount disbursed
-      * GET /api/application/stats/dashboard endpoint
-  - Built the admin application listing with advanced filtering:
-      * getAllApplications() — paginated list with:
-          - Filter by overallStatus
-          - Filter by department
-          - Text search across enrollmentNumber, studentName, applicationId
-          - Department admin scope enforcement (sees only own dept applications)
-      * GET /api/application/all endpoint
-  - Built the application detail endpoint:
-      * getApplicationById() — full application with populated student data
-      * GET /api/application/:id endpoint
-  - Developed the response utility (src/utils/response.js):
-      * sendSuccess() — standardizes all API success responses
+KYA KIYA:
+  - Refund processing engine build kiya — project ka climax, sab iske liye kaam karte hain:
+      * processRefund() — fully_cleared nahi? Refund nahi. Rules hain rules.
+      * Unique transaction ID generate: TXN-[timestamp]-[random]
+        (har refund ka apna fingerprint, NGL pretty cool)
+      * Default refund amount: Rs. 5000. Khushi ho ya dukh — yahi milega.
+      * Sirf accounts admin ya superadmin process kar sakta. Aur koi nahi. Never.
+      * Timeline mein entry — "paisa gaya" permanently record. No denials.
+  - Admin dashboard analytics build kiya (getDashboardStats()):
+      * Total applications, submitted, under review, cleared, refunded, on hold
+      * Total refund amount disbursed — kitna paisa college ne wapas kiya
+      * Admins log ye dekh ke productive feel karte hain (probably)
+  - getAllApplications() — advanced filtering wala:
+      * Status filter, department filter, free text search
+      * Department admin sirf apna department dekhega. No snooping allowed.
+      * Pagination bhi hai — ek baar mein sab load? Server ki jaan nahi leni.
+  - Application detail endpoint banaya — specific application poori details ke saath
+  - Response utility banaya (src/utils/response.js):
+      * sendSuccess() — sabke API responses ka ek consistent format.
+        Consistency is literally the bare minimum.
+
+  Routes:
+      GET   /api/application/all              — "Sab dikhao mujhe"
+      GET   /api/application/stats/dashboard  — "Numbers dikhao, mujhe data chahiye"
+      GET   /api/application/:id              — "Sirf ye wala dikhao"
+      PATCH /api/application/:id/refund       — "Paisa bhejo finally"
 
 KEY FILES:
   src/services/application.service.js (processRefund, getDashboardStats, getAllApplications, getApplicationById)
-  src/controllers/application.controller.js (processRefund, getDashboardStats, getAllApplications, getApplicationById)
-  src/routes/application.js | src/utils/response.js
+  src/controllers/application.controller.js | src/routes/application.js
+  src/utils/response.js
 
 ================================================================================
-COLLABORATION & SHARED OWNERSHIP
+COLLABORATION — YAANI MILA KE KAAM
 ================================================================================
 
-  - All team members followed the unified coding conventions set by Jiveetesh
-  - Jiveetesh reviewed and merged contributions into the modular src/ structure
-  - Shared ownership: src/routes/application.js (Aishwary, Dhruv, Sumit)
-  - Shared ownership: src/services/application.service.js (Aishwary, Dhruv, Sumit)
-  - Shared ownership: src/controllers/application.controller.js (Aishwary, Dhruv, Sumit)
+  - Jiveetesh ne sab ka kaam review kiya aur modular structure mein merge kiya.
+    Tech lead ka kaam: code review, architecture decisions, aur chai.
+  - src/routes/application.js — Aishwary, Dhruv aur Sumit teeno ka haath hai.
+  - src/services/application.service.js — project ki sabse badi file, sabse
+    zyada contributors, sabse zyada merge conflicts. Character building.
+  - src/controllers/application.controller.js — same gang, shared responsibility.
+
+  Ek cheez yaad rakhna: application module mein sab ka code hai.
+  Git blame mat karna ek doosre pe. Team game tha, team game hai.
 
 ================================================================================
-API ENDPOINT SUMMARY
+ENDPOINT SUMMARY — KAUN SA ROUTE KISNE BANAYA
 ================================================================================
 
-  Auth Routes (src/routes/auth.js)
-    POST   /api/auth/student/register    — Dheeraj
-    POST   /api/auth/student/login       — Dheeraj
-    POST   /api/auth/admin/login         — Dheeraj
-    GET    /api/auth/me                  — Dheeraj
+  Auth Routes (src/routes/auth.js)              Dheeraj ka zone
+    POST   /api/auth/student/register
+    POST   /api/auth/student/login
+    POST   /api/auth/admin/login
+    GET    /api/auth/me
 
-  Student Routes (src/routes/student.js)
-    GET    /api/student/profile          — Aishwary
-    PATCH  /api/student/profile          — Aishwary
+  Student Routes (src/routes/student.js)        Aishwary ka zone
+    GET    /api/student/profile
+    PATCH  /api/student/profile
 
-  Admin Routes (src/routes/admin.js)
-    GET    /api/admin/profile            — Anuj
-    GET    /api/admin/all                — Anuj
+  Admin Routes (src/routes/admin.js)            Anuj ka zone
+    GET    /api/admin/profile
+    GET    /api/admin/all
 
-  Application Routes (src/routes/application.js)
+  Application Routes (src/routes/application.js)  Shared dukaan
     POST   /api/application/submit           — Aishwary
     GET    /api/application/my               — Aishwary
     PATCH  /api/application/bank-details     — Aishwary
@@ -302,4 +311,7 @@ API ENDPOINT SUMMARY
     PATCH  /api/application/:id/clearance    — Dhruv
     PATCH  /api/application/:id/refund       — Sumit
 
+================================================================================
+   Is backend pe 8 logon ne kaam kiya. 1 ne socha, 7 ne execute kiya.
+    Sab ne bugs fix kiye. Sab ne chai piya. Sab legends hain. Period.
 ================================================================================
