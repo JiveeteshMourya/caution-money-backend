@@ -1,0 +1,465 @@
+==============================================================================
+              CAUTION MONEY BACKEND — TECHNICAL SUMMARY
+                      (For developers working on this project)
+==============================================================================
+
+
+------------------------------------------------------------------------------
+1. STACK OVERVIEW
+------------------------------------------------------------------------------
+
+  Runtime      : Node.js (ES Modules — "type": "module" in package.json)
+  Framework    : Express.js v4
+  Database     : MongoDB Atlas via Mongoose v8
+  Auth         : JWT (jsonwebtoken) + bcryptjs (salt rounds: 12)
+  Validation   : express-validator v7
+  Security     : helmet, cors, express-rate-limit
+  Logging      : morgan (dev mode)
+  Dev tooling  : nodemon, prettier
+
+
+------------------------------------------------------------------------------
+2. PROJECT ARCHITECTURE — 3-LAYER PATTERN
+------------------------------------------------------------------------------
+
+  Every feature follows:  Controller → Service → Repository
+
+  Controller  (src/controllers/)
+    - Parses req, calls service, sends res
+    - No business logic — thin glue layer
+
+  Service     (src/services/)
+    - All business rules and decisions live here
+    - Throws AppError subclasses on failures
+    - Calls repositories for DB access
+
+  Repository  (src/repositories/)
+    - Raw Mongoose queries only
+    - No business logic, no error throwing
+    - Keeps DB concerns isolated from services
+
+  This separation means:
+    - Business logic is testable without HTTP context
+    - DB queries are swappable without touching services
+    - Controllers stay clean and consistent
+
+
+------------------------------------------------------------------------------
+3. ENTRY POINT — server.js
+------------------------------------------------------------------------------
+
+  Startup sequence (in order):
+
+    1. dotenv.config()                → load .env into process.env
+    2. validateEnv()                  → crash-fail if required vars missing
+    3. connectDB()                    → connect to MongoDB Atlas (async)
+    4. app.use(helmet())              → security headers on all responses
+    5. app.use(cors({...}))           → whitelist FRONTEND_URL only
+    6. app.use('/api/', limiter)      → 100 req / 15 min, all API routes
+    7. app.use('/api/auth/', authLimiter) → 10 req / 15 min, auth routes only
+    8. app.use(express.json({limit:'10kb'})) → body parser, 10KB cap
+    9. app.use(morgan('dev'))         → HTTP logging to stdout
+   10. Route mounts                   → /api/auth, /api/student, etc.
+   11. app.use(errorHandler)          → global error catch (must be last)
+   12. app.listen(PORT)               → default 5000
+
+
+------------------------------------------------------------------------------
+4. MIDDLEWARE CHAIN (per request)
+------------------------------------------------------------------------------
+
+  Every request passes through this chain before reaching a controller:
+
+  [Rate Limiter] → [CORS check] → [Helmet headers] → [JSON parser]
+       ↓
+  [Route match]
+       ↓
+  [Auth middleware]  (protect / protectStudent / protectAdmin)
+       ↓
+  [Validator rules]  (express-validator body() chains)
+       ↓
+  [validate()]       (checks validationResult, throws 400 if errors)
+       ↓
+  [Controller]
+
+
+------------------------------------------------------------------------------
+5. AUTHENTICATION SYSTEM
+------------------------------------------------------------------------------
+
+  Token generation — src/utils/tokenHelper.js:
+    jwt.sign({ id, role }, JWT_SECRET, { expiresIn: JWT_EXPIRE || '7d' })
+    Role embedded in payload: 'student' | 'superadmin' | 'library' | etc.
+
+  Token verification — src/middleware/auth.js:
+    - Expects: Authorization: Bearer <token>
+    - Decodes token → checks decoded.role
+    - If 'student'  → loads Student doc (without password) → req.user
+    - If anything else → loads Admin doc → req.user
+    - Sets req.userType = 'student' | 'admin'
+
+  Guard middleware:
+    protect(req, res, next)          → validates JWT, sets req.user
+    protectStudent(req, res, next)   → calls protect(), then checks userType === 'student'
+    protectAdmin(req, res, next)     → calls protect(), then checks userType === 'admin'
+    restrictTo(...roles)             → checks req.user.role is in allowed list
+
+  Usage pattern on routes:
+    router.patch('/:id/refund', protectAdmin, restrictTo('accounts', 'superadmin'), ...)
+    router.post('/submit', protectStudent, validators, validate, controller)
+
+  Password hashing:
+    - bcrypt.hash(password, 12) in pre('save') hook on Student and Admin models
+    - Only runs when password field is modified (isModified('password') guard)
+    - password field has select: false — never returned in queries by default
+    - comparePassword(candidate) instance method on both models
+
+  Account locking (Student model only):
+    - loginAttempts tracked per student
+    - After 5 failed attempts → lockUntil = Date.now() + 2h
+    - isLocked() checks lockUntil > Date.now()
+    - incLoginAttempts() handles incrementing + auto-reset after lock expires
+
+
+------------------------------------------------------------------------------
+6. DATABASE SCHEMAS (Mongoose)
+------------------------------------------------------------------------------
+
+  -- Student --
+  Field               Type        Notes
+  enrollmentNumber    String      unique, uppercase, trim, regex: /^[A-Z0-9]{8,14}$/
+  name                String      maxlength: 100
+  mobileNumber        String      regex: /^[6-9]\d{9}$/
+  department          String      enum: CSE/IT/ECE/ME/CE/EE/MCA/MBA/Other
+  dateOfBirth         Date
+  isHosteller         Boolean     default: false
+  password            String      select: false, minlength: 8
+  bankDetails         Object      accountHolderName, accountNumber, ifscCode, bankName, branchName
+  passoutYear         Number
+  isVerified          Boolean     default: false (OTP flow not yet active)
+  otp / otpExpiry              select: false — future OTP verification
+  loginAttempts       Number      default: 0
+  lockUntil           Date
+  lastLogin           Date
+  Hooks: pre('save') → bcrypt hash if password modified
+
+  -- Admin --
+  Field               Type        Notes
+  name                String
+  email               String      unique, lowercase
+  password            String      select: false
+  role                String      enum: superadmin/library/sports/hostel/department/accounts
+  department          String
+  adminId             String      unique (manually assigned)
+  isActive            Boolean     default: true
+  loginAttempts       Number
+  lockUntil           Date
+  Hooks: pre('save') → bcrypt hash if password modified
+
+  -- Application --
+  Field               Type        Notes
+  applicationId       String      unique, auto: "IEHE-" + Date.now().toString(36).toUpperCase()
+  student             ObjectId    ref: 'Student'
+  enrollmentNumber    String      denormalized for query convenience
+  studentName         String      denormalized
+  department          String      denormalized
+  mobileNumber        String      denormalized
+  isHosteller         Boolean
+  passoutYear         Number
+  bankDetails         Object      accountHolderName, accountNumber, ifscCode, bankName, branchName
+  clearances          Object      sub-docs: library/sports/hostel/department/accounts
+  overallStatus       String      enum (see section 7)
+  refundAmount        Number      default: 5000
+  refundStatus        String      enum: pending/approved/processed/rejected
+  refundProcessedAt   Date
+  refundTransactionId String      format: "IEHE-TXN-" + Date.now().toString(36).toUpperCase()
+  declaration         Boolean
+  submittedAt         Date
+  lastUpdated         Date        updated in pre('save')
+  timeline            Array       audit log entries: {event, description, performedBy, role, timestamp}
+
+  clearanceSchema (embedded in each clearance slot):
+    status      : 'pending' | 'cleared' | 'hold' | 'na'
+    reason      : String
+    remarks     : String
+    updatedBy   : ObjectId (ref: Admin)
+    updatedByName: String
+    updatedAt   : Date
+
+  Note on denormalization:
+    enrollmentNumber, studentName, department, mobileNumber are copied from
+    the student doc at submit time. This avoids populating the Student ref on
+    every list query and keeps application data self-contained.
+
+
+------------------------------------------------------------------------------
+7. APPLICATION STATUS STATE MACHINE
+------------------------------------------------------------------------------
+
+  overallStatus is NEVER set manually — it is computed by a pre('save') hook
+  on the Application model every time the document is saved.
+
+  Logic (src/models/Application.js lines 92–110):
+
+    required = ['library', 'sports', 'department', 'accounts']
+    if (isHosteller) required.push('hostel')
+
+    statuses = required.map(k => clearances[k].status)
+
+    if any status === 'hold'     → overallStatus = 'on_hold'
+    else if all === 'cleared'    → 'fully_cleared' or 'refund_processed'
+                                   (depends on refundStatus === 'processed')
+    else if some === 'cleared'   → 'partially_cleared'
+    else                         → 'under_review'
+
+  Note: 'submitted' is only the initial default. Once any save occurs (e.g.
+  a clearance update), the hook overwrites it with the computed status.
+
+  State transitions:
+    submitted → under_review → partially_cleared → fully_cleared → refund_processed
+                             ↘ on_hold ↗
+
+
+------------------------------------------------------------------------------
+8. CLEARANCE ROLE AUTHORIZATION
+------------------------------------------------------------------------------
+
+  Defined in src/constants/departments.js:
+
+    CLEARANCE_ROLE_MAP = {
+      library   : ['library',    'superadmin'],
+      sports    : ['sports',     'superadmin'],
+      hostel    : ['hostel',     'superadmin'],
+      department: ['department', 'superadmin'],
+      accounts  : ['accounts',   'superadmin'],
+    }
+
+  In application.service.js → updateClearance():
+    Checks CLEARANCE_ROLE_MAP[clearanceType].includes(admin.role)
+    Throws ForbiddenError if not allowed.
+
+  Department scoping:
+    Admins with role === 'department' only see applications where
+    application.department === admin.department (applied in getAllApplications query).
+
+
+------------------------------------------------------------------------------
+9. REPOSITORY LAYER (src/repositories/application.repository.js)
+------------------------------------------------------------------------------
+
+  findByStudentId(studentId)
+    Application.findOne({ student: studentId })
+
+  findByApplicationId(applicationId, populate = false)
+    Application.findOne({ applicationId })
+    Optional .populate('student', 'name enrollmentNumber mobileNumber department dateOfBirth')
+
+  findAll(query, page, limit)
+    Application.find(query)
+      .sort({ submittedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+
+  countDocuments(query)
+    Application.countDocuments(query)
+
+  create(data)
+    Application.create(data)
+
+  Note: All pagination is offset-based (skip/limit). page is 1-indexed.
+
+
+------------------------------------------------------------------------------
+10. VALIDATION LAYER
+------------------------------------------------------------------------------
+
+  Pattern:
+    Route file imports validator rules array + validate middleware
+    router.post('/route', authMiddleware, [...rules], validate, controller)
+
+  validate middleware (src/validators/validate.js):
+    Calls validationResult(req) — if errors exist, returns 400 with
+    first error message.
+
+  Auth rules (src/validators/auth.validators.js):
+    studentRegisterRules: enrollment (8-14 chars), name, mobile (/^[6-9]\d{9}$/),
+                          department, dateOfBirth (isDate), password (min 8), isHosteller
+    studentLoginRules:    enrollmentNumber, password
+    adminLoginRules:      email (isEmail + normalizeEmail), password
+
+  Application rules (src/validators/application.validators.js):
+    submitApplicationRules: bankDetails fields, ifscCode (/^[A-Z]{4}0[A-Z0-9]{6}$/i),
+                            passoutYear (int 2000–2030), declaration (isBoolean)
+    updateClearanceRules:   clearanceType (isIn CLEARANCE_TYPES),
+                            status (isIn ['cleared','hold','pending']),
+                            reason (optional string)
+
+
+------------------------------------------------------------------------------
+11. ERROR HANDLING
+------------------------------------------------------------------------------
+
+  AppError hierarchy (src/errors/AppError.js):
+    AppError(message, statusCode)  → base, sets isOperational = true
+      NotFoundError    → 404
+      ConflictError    → 409
+      ForbiddenError   → 403
+      ValidationError  → 400
+      UnauthorizedError → 401
+
+  errorHandler middleware (src/middleware/errorHandler.js):
+    if (err.isOperational)  → res.status(err.statusCode).json({ error: err.message })
+    else                    → log stack, res.status(500).json({ error: 'Internal Server Error' })
+                              + stack trace included if NODE_ENV === 'development'
+
+  Pattern in services:
+    throw new ConflictError('Application already submitted')
+    // or with extra data:
+    throw Object.assign(new ConflictError('...'), { applicationId: existing.applicationId })
+    // errorHandler spreads extra props into response if present
+
+
+------------------------------------------------------------------------------
+12. RESPONSE FORMAT
+------------------------------------------------------------------------------
+
+  sendSuccess(res, data, statusCode = 200) in src/utils/response.js:
+    Simply calls res.status(statusCode).json(data)
+
+  All success responses are plain JSON objects shaped per-controller.
+  No envelope wrapper (no { success: true, data: ... } pattern).
+
+  Error responses shape:
+    { error: "message string" }
+    { error: "message", applicationId: "IEHE-..." }   ← ConflictError with extra prop
+    { error: "...", stack: "..." }                     ← dev mode only
+
+
+------------------------------------------------------------------------------
+13. DASHBOARD STATS QUERY
+------------------------------------------------------------------------------
+
+  getDashboardStats() in application.service.js runs 6 countDocuments()
+  queries in parallel using Promise.all():
+
+    [total, submitted, underReview, cleared, refunded, onHold] =
+      await Promise.all([...6 queries...])
+
+  underReview counts both 'under_review' AND 'partially_cleared' statuses
+  using $in operator.
+
+  totalRefundAmount = refunded * 5000 (computed, not stored)
+
+  Department admins get filtered stats (baseQuery = { department: admin.department }).
+  All other admins get global stats.
+
+
+------------------------------------------------------------------------------
+14. RATE LIMITING CONFIGURATION
+------------------------------------------------------------------------------
+
+  General limiter:  windowMs: 15 * 60 * 1000 (15 min), max: 100
+  Auth limiter:     windowMs: 15 * 60 * 1000 (15 min), max: 10
+
+  Applied at:
+    app.use('/api/', limiter)          → all API routes
+    app.use('/api/auth/', authLimiter) → auth routes (more restrictive)
+
+  Both limiters are applied to /api/auth/ — both count independently.
+  Response on limit hit: 429 { error: "Too many requests..." }
+
+
+------------------------------------------------------------------------------
+15. SECURITY HEADERS (helmet)
+------------------------------------------------------------------------------
+
+  app.use(helmet()) applies these headers automatically:
+    Content-Security-Policy
+    X-DNS-Prefetch-Control
+    X-Frame-Options: SAMEORIGIN
+    X-Permitted-Cross-Domain-Policies
+    Referrer-Policy
+    X-Content-Type-Options: nosniff
+    X-XSS-Protection (legacy browsers)
+    Strict-Transport-Security (HSTS)
+
+
+------------------------------------------------------------------------------
+16. CORS CONFIGURATION
+------------------------------------------------------------------------------
+
+  cors({ origin: process.env.FRONTEND_URL, credentials: true })
+
+  Single allowed origin — no wildcard.
+  credentials: true needed for cookie-based flows (if added later).
+  Blocked origins receive a CORS error before reaching any route handler.
+
+
+------------------------------------------------------------------------------
+17. CONSTANTS (src/constants/)
+------------------------------------------------------------------------------
+
+  departments.js:
+    DEPARTMENTS        = ['CSE','IT','ECE','ME','CE','EE','MCA','MBA','Other']
+    CLEARANCE_TYPES    = ['library','sports','hostel','department','accounts']
+    CLEARANCE_ROLE_MAP = { library: [...], sports: [...], ... }
+
+  roles.js:
+    (Admin roles and user type constants)
+
+  statuses.js:
+    APPLICATION_STATUS = {
+      SUBMITTED: 'submitted', UNDER_REVIEW: 'under_review',
+      PARTIALLY_CLEARED: 'partially_cleared', FULLY_CLEARED: 'fully_cleared',
+      REFUND_PROCESSED: 'refund_processed', REJECTED: 'rejected',
+      ON_HOLD: 'on_hold'
+    }
+
+  Used across services and models to avoid magic strings.
+
+
+------------------------------------------------------------------------------
+18. DATABASE SEEDING (src/config/seed.js)
+------------------------------------------------------------------------------
+
+  Run via: npm run seed
+  Populates initial admin accounts and any required base data.
+  Should only be run once on a fresh database (or cleared database).
+
+
+------------------------------------------------------------------------------
+19. ENVIRONMENT VARIABLES (required — validated at startup)
+------------------------------------------------------------------------------
+
+  Validated by validateEnv() in src/config/env.js.
+  App crashes on startup if any are missing.
+
+  PORT            → Express listen port (default: 5000)
+  MONGODB_URI     → Full MongoDB Atlas connection string
+  JWT_SECRET      → HMAC secret for JWT signing
+  JWT_EXPIRE      → Token TTL string e.g. "7d", "24h"
+  NODE_ENV        → 'development' | 'production'
+  FRONTEND_URL    → Exact origin for CORS whitelist
+
+
+------------------------------------------------------------------------------
+20. NPM SCRIPTS
+------------------------------------------------------------------------------
+
+  npm run dev     → nodemon server.js  (watch mode, auto-restart)
+  npm start       → node server.js     (production)
+  npm run seed    → node src/config/seed.js
+  npm run format  → prettier --write . (respects .prettierignore)
+
+
+------------------------------------------------------------------------------
+21. ES MODULE NOTES
+------------------------------------------------------------------------------
+
+  Package uses "type": "module" → all files use import/export syntax.
+  No require() / module.exports anywhere.
+  File extensions must be included in relative imports: import x from './file.js'
+  Top-level await is available.
+
+
+==============================================================================

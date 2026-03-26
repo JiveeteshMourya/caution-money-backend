@@ -1,0 +1,280 @@
+==============================================================================
+                  CAUTION MONEY BACKEND — PROJECT SUMMARY
+==============================================================================
+
+
+------------------------------------------------------------------------------
+WHAT IS THIS PROJECT?
+------------------------------------------------------------------------------
+
+This is the backend (server-side) of a "Caution Money Refund System" built
+for a college/institution. When students leave college, they can apply to get
+their caution deposit (a security fee they paid during admission) refunded.
+
+This backend handles:
+  - Student registration and login
+  - Submitting a refund application with bank details
+  - Multiple department approvals (clearances) before money is refunded
+  - Admin logins for each department to approve/reject their clearance
+  - Dashboard for admins to see all applications and their status
+
+
+------------------------------------------------------------------------------
+HOW DOES IT WORK? (The Big Picture)
+------------------------------------------------------------------------------
+
+Think of this backend as a "middleman" between the frontend website and the
+database. It receives requests from the frontend, processes them, and sends
+back a response.
+
+Here is the general flow:
+
+  1. Frontend sends a request  →  e.g., "Student wants to login"
+  2. Backend checks if the request is valid  →  Is the password correct?
+  3. Backend talks to the database  →  Fetch/save the student's data
+  4. Backend sends back a response  →  "Here is your login token" or "Wrong password"
+
+The student goes through this journey:
+  Register → Login → Add Bank Details → Submit Application → Wait for Clearances → Get Refund
+
+The admin goes through this journey:
+  Login → View Applications → Approve/Reject Their Department Clearance → Process Refund
+
+
+------------------------------------------------------------------------------
+FOLDER STRUCTURE (What goes where)
+------------------------------------------------------------------------------
+
+caution-money-backend/
+│
+├── server.js           → The starting point. Runs the server.
+├── package.json        → List of all libraries this project uses.
+├── .env                → Secret settings (passwords, database URL, etc.)
+│
+└── src/                → All the main code lives here
+    │
+    ├── config/         → Setup files (database connection, env validation)
+    ├── constants/       → Fixed values like department names, roles, statuses
+    ├── errors/          → Custom error message templates
+    ├── middleware/      → Code that runs in between every request (auth, errors)
+    ├── models/          → Blueprint of how data is stored in the database
+    ├── controllers/     → Entry point for each request — decides what to do
+    ├── services/        → The actual business logic / rules of the app
+    ├── repositories/    → Talks directly to the database
+    ├── validators/      → Checks if the user's input is correct before processing
+    └── utils/           → Small helper functions (generate token, format response)
+
+
+------------------------------------------------------------------------------
+THE REQUEST JOURNEY (Step-by-step example)
+------------------------------------------------------------------------------
+
+Example: A student submits a refund application
+
+  1. Student clicks "Submit Application" on the website
+  2. Frontend sends a POST request to: /api/application/submit
+  3. Rate Limiter checks: "Is this user sending too many requests? (spam check)"
+  4. Auth Middleware checks: "Is the user logged in? Is their token valid?"
+  5. Validator checks: "Did they fill all required fields correctly?"
+  6. Controller receives the request and calls the Service
+  7. Service applies business rules: "Has the student already applied? Do they have bank details?"
+  8. Repository saves the new application to the database
+  9. Backend sends back: "Application submitted successfully!"
+
+
+------------------------------------------------------------------------------
+WHO ARE THE USERS? (Roles)
+------------------------------------------------------------------------------
+
+There are two types of users:
+
+  STUDENTS
+    - Register with their enrollment number
+    - Login and submit a refund application
+    - Track their clearance status
+
+  ADMINS (6 types)
+    - superadmin   → Full access, can do everything
+    - library      → Manages library clearance
+    - sports       → Manages sports clearance
+    - hostel       → Manages hostel clearance
+    - department   → Manages department clearance
+    - accounts     → Final step — processes the actual refund
+
+
+------------------------------------------------------------------------------
+THE APPLICATION LIFECYCLE (How an application progresses)
+------------------------------------------------------------------------------
+
+  submitted          → Student just submitted the form
+       ↓
+  under_review       → Admins are reviewing clearances
+       ↓
+  partially_cleared  → Some departments approved, some still pending
+       ↓
+  on_hold            → One or more departments put it on hold (issue found)
+       ↓
+  fully_cleared      → ALL departments approved → ready for refund
+       ↓
+  refund_processed   → Accounts admin marked refund as done ✓
+
+  (rejected)         → Application was rejected at any stage
+
+Clearances needed:
+  - Library    → Always required
+  - Sports     → Always required
+  - Department → Always required
+  - Hostel     → Only if the student was a hosteller
+  - Accounts   → Final clearance, processed after all others
+
+
+------------------------------------------------------------------------------
+ALL API ENDPOINTS (What the frontend can ask for)
+------------------------------------------------------------------------------
+
+HEALTH CHECK
+  GET  /api/health          → Check if server is running
+
+AUTH (Login / Register)
+  POST /api/auth/student/register   → Register a new student
+  POST /api/auth/student/login      → Student login
+  POST /api/auth/admin/login        → Admin login
+  GET  /api/auth/me                 → Get current logged-in user info
+
+STUDENT
+  GET   /api/student/profile        → View student profile
+  PATCH /api/student/profile        → Update mobile number, bank details
+
+APPLICATION
+  POST  /api/application/submit              → Submit refund application
+  GET   /api/application/my                  → View your own application
+  PATCH /api/application/bank-details        → Update bank details
+  GET   /api/application/all                 → (Admin) View all applications
+  GET   /api/application/stats/dashboard     → (Admin) View dashboard stats
+  GET   /api/application/:id                 → (Admin) View one application
+  PATCH /api/application/:id/clearance       → (Admin) Approve/reject clearance
+  PATCH /api/application/:id/refund          → (Accounts Admin) Process refund
+
+ADMIN
+  GET   /api/admin/profile          → View admin profile
+  GET   /api/admin/all              → (Superadmin) View all admins
+
+
+------------------------------------------------------------------------------
+TOOLS AND TECHNOLOGIES USED
+------------------------------------------------------------------------------
+
+RUNTIME & FRAMEWORK
+  Node.js         → The environment that runs JavaScript on the server side.
+                    (JavaScript was originally only for browsers; Node.js lets
+                    us use it on the server too.)
+
+  Express.js      → A simple framework built on top of Node.js to make
+                    creating web servers and API routes much easier.
+
+DATABASE
+  MongoDB         → A NoSQL database that stores data as flexible JSON-like
+                    documents instead of strict tables (like Excel sheets).
+                    Great for storing student and application data.
+
+  MongoDB Atlas   → The cloud-hosted version of MongoDB. Our database lives
+                    here online instead of on a local computer.
+
+  Mongoose        → A library that makes talking to MongoDB from Node.js
+                    easier. It lets us define schemas (data shapes/blueprints)
+                    and run queries in a clean way.
+
+AUTHENTICATION & SECURITY
+  JWT             → JSON Web Token. After login, the server gives the user
+(jsonwebtoken)      a "token" (like a digital ID card). The user sends this
+                    token with every future request so the server knows who
+                    they are without asking them to login again.
+
+  bcryptjs        → Used to hash (scramble) passwords before saving them to
+                    the database. So even if the database is hacked, actual
+                    passwords are never stored/visible.
+
+  helmet          → Adds extra security headers to every response, protecting
+                    against common web attacks automatically.
+
+  cors            → Controls which websites/frontends are allowed to talk to
+                    our backend. Blocks unauthorized sources.
+
+  express-rate-limit → Limits how many requests a user can make in a short
+                    time. Prevents spam and brute-force attacks.
+
+INPUT HANDLING & VALIDATION
+  express-validator → Checks and cleans up user inputs before processing.
+                    For example: "Is this a valid mobile number?",
+                    "Is this IFSC code in the right format?"
+
+  dotenv          → Loads secret settings (like database passwords) from a
+                    .env file into the app, keeping secrets out of the code.
+
+LOGGING & DEVELOPMENT
+  morgan          → Logs every incoming HTTP request to the terminal.
+                    Helpful for debugging (seeing what requests are coming in).
+
+  nodemon         → A development tool that automatically restarts the server
+                    whenever you save a code change. Saves time during coding.
+
+  prettier        → A code formatter that auto-formats your code to look
+                    clean and consistent.
+
+
+------------------------------------------------------------------------------
+KEY DESIGN DECISIONS (Why we built it this way)
+------------------------------------------------------------------------------
+
+WHY SEPARATE controllers / services / repositories?
+  → It keeps the code organized. Controller handles the request, Service has
+    the business rules, Repository talks to the database. If something breaks,
+    it's easy to find where the problem is.
+
+WHY JWT for authentication (not sessions)?
+  → JWTs are stateless — the server doesn't need to remember anything. The
+    token itself carries the user info. This is better for scalability and
+    works well with separate frontend/backend setups.
+
+WHY MongoDB (not MySQL/PostgreSQL)?
+  → Our data (especially applications with nested clearances and timelines)
+    doesn't fit neatly into fixed table rows. MongoDB's flexible document
+    format is a natural fit for this kind of nested, varying data.
+
+WHY role-based access control?
+  → Different admins should only see and do things relevant to their
+    department. A library admin should NOT be able to process a refund.
+    Role-based control enforces these boundaries cleanly.
+
+WHY automatic status computation?
+  → Instead of manually updating the "overall status" every time a clearance
+    changes, the Application model automatically recalculates it. This
+    prevents bugs from inconsistent manual updates.
+
+
+------------------------------------------------------------------------------
+RUNNING THE PROJECT
+------------------------------------------------------------------------------
+
+  npm run dev     → Start server in development mode (auto-restarts on change)
+  npm start       → Start server in production mode
+  npm run seed    → Fill the database with initial/test data
+  npm run format  → Auto-format all code files with prettier
+
+Server runs on:  http://localhost:5000
+Frontend talks to this server from: http://localhost:5173
+
+
+------------------------------------------------------------------------------
+ENVIRONMENT VARIABLES (.env file — keep this secret!)
+------------------------------------------------------------------------------
+
+  PORT            → Which port the server runs on (default: 5000)
+  MONGODB_URI     → The URL to connect to the MongoDB Atlas database
+  JWT_SECRET      → A secret key used to sign/verify login tokens
+  JWT_EXPIRE      → How long a login token stays valid (default: 7 days)
+  NODE_ENV        → "development" or "production"
+  FRONTEND_URL    → The URL of the frontend app (for CORS settings)
+
+
+==============================================================================
