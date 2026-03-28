@@ -1,11 +1,13 @@
 import * as adminService from "../services/admin.service.js";
-import { sendSuccess } from "../utils/response.js";
+import ServerResponse from "../utils/ServerResponse.js";
 
 export const getProfile = (req, res) => {
-  sendSuccess(res, adminService.getProfile(req.user));
+  res
+    .status(200)
+    .json(new ServerResponse(200, adminService.getProfile(req.user)));
 };
 
-export const getAllAdmins = async (req, res) => {
+export const getAllAdmins = async (_req, res) => {
   const result = await adminService.getAllAdmins();
-  sendSuccess(res, result);
+  res.status(200).json(new ServerResponse(200, result));
 };

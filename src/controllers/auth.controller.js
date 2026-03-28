@@ -1,26 +1,28 @@
 import * as authService from "../services/auth.service.js";
-import { sendSuccess } from "../utils/response.js";
+import ServerResponse from "../utils/ServerResponse.js";
 
 export const registerStudent = async (req, res) => {
   const result = await authService.registerStudent(req.body);
-  sendSuccess(res, result, 201);
+  res.status(201).json(new ServerResponse(201, result));
 };
 
 export const loginStudent = async (req, res) => {
   const result = await authService.loginStudent(req.body);
-  sendSuccess(res, result);
+  res.status(200).json(new ServerResponse(200, result));
 };
 
 export const loginAdmin = async (req, res) => {
   const result = await authService.loginAdmin(req.body);
-  sendSuccess(res, result);
+  res.status(200).json(new ServerResponse(200, result));
 };
 
 export const getMe = async (req, res) => {
-  sendSuccess(res, {
-    user: {
-      ...req.user.toObject(),
-      role: req.userType === "student" ? "student" : req.user.role,
-    },
-  });
+  res.status(200).json(
+    new ServerResponse(200, {
+      user: {
+        ...req.user.toObject(),
+        role: req.userType === "student" ? "student" : req.user.role,
+      },
+    })
+  );
 };

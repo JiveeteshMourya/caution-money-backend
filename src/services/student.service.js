@@ -1,9 +1,9 @@
 import * as studentRepo from "../repositories/student.repository.js";
-import { NotFoundError } from "../errors/AppError.js";
+import ServerError from "../errors/ServerError.js";
 
 export const getProfile = async (studentId) => {
   const student = await studentRepo.findById(studentId);
-  if (!student) throw new NotFoundError("Student not found");
+  if (!student) throw new ServerError(404, "Student not found");
   return { student };
 };
 

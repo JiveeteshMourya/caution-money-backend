@@ -1,21 +1,16 @@
 import * as appRepo from "../repositories/application.repository.js";
 import { CLEARANCE_ROLE_MAP } from "../constants/departments.js";
 import { APPLICATION_STATUS } from "../constants/statuses.js";
-import {
-  ConflictError,
-  NotFoundError,
-  ForbiddenError,
-  ValidationError,
-} from "../errors/AppError.js";
+import ServerError from "../errors/ServerError.js";
 
 export const submitApplication = async (student, body) => {
   const { bankDetails, passoutYear, declaration } = body;
 
   const existing = await appRepo.findByStudentId(student._id);
   if (existing)
-    throw Object.assign(new ConflictError("Application already submitted"), {
-      applicationId: existing.applicationId,
-    });
+    throw new ServerError(409, "Application already submitted", [
+      { applicationId: existing.applicationId },
+    ]);
 
   const appData = {
     student: student._id,
@@ -54,15 +49,15 @@ export const submitApplication = async (student, body) => {
 
 export const getMyApplication = async (studentId) => {
   const app = await appRepo.findByStudentId(studentId);
-  if (!app) throw new NotFoundError("No application found");
+  if (!app) throw new ServerError(404, "No application found");
   return { application: app };
 };
 
 export const updateBankDetails = async (studentId, updates) => {
   const app = await appRepo.findByStudentId(studentId);
-  if (!app) throw new NotFoundError("Application not found");
+  if (!app) throw new ServerError(404, "Application not found");
   if (app.refundStatus === "processed")
-    throw new ValidationError("Refund already processed");
+    throw new ServerError(400, "Refund already processed");
   Object.assign(app.bankDetails, updates);
   await app.save();
   return { message: "Bank details updated", bankDetails: app.bankDetails };
@@ -94,7 +89,7 @@ export const getAllApplications = async (admin, queryParams) => {
 
 export const getApplicationById = async (applicationId) => {
   const app = await appRepo.findByApplicationId(applicationId, true);
-  if (!app) throw new NotFoundError("Application not found");
+  if (!app) throw new ServerError(404, "Application not found");
   return { application: app };
 };
 
@@ -102,15 +97,17 @@ export const updateClearance = async (applicationId, admin, body) => {
   const { clearanceType, status, reason, remarks } = body;
 
   if (!CLEARANCE_ROLE_MAP[clearanceType]?.includes(admin.role)) {
-    throw new ForbiddenError(
+    throw new ServerError(
+      403,
       `You don't have permission to update ${clearanceType} clearance`
     );
   }
 
   const app = await appRepo.findByApplicationId(applicationId);
-  if (!app) throw new NotFoundError("Application not found");
+  if (!app) throw new ServerError(404, "Application not found");
   if (app.clearances[clearanceType].status === "na") {
-    throw new ValidationError(
+    throw new ServerError(
+      400,
       "This clearance is not applicable for this student"
     );
   }
@@ -152,9 +149,9 @@ export const updateClearance = async (applicationId, admin, body) => {
 
 export const processRefund = async (applicationId, admin) => {
   const app = await appRepo.findByApplicationId(applicationId);
-  if (!app) throw new NotFoundError("Application not found");
+  if (!app) throw new ServerError(404, "Application not found");
   if (app.overallStatus !== APPLICATION_STATUS.FULLY_CLEARED)
-    throw new ValidationError("All clearances must be approved first");
+    throw new ServerError(400, "All clearances must be approved first");
 
   const txnId = "IEHE-TXN-" + Date.now().toString(36).toUpperCase();
   app.refundStatus = "processed";
