@@ -1,4 +1,5 @@
 import ServerError from "../errors/ServerError.js";
+import logger from "../utils/logger.js";
 
 export const errorHandler = (err, req, res, next) => {
   if (err instanceof ServerError) {
@@ -10,7 +11,7 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
-  console.error(err.stack);
+  logger.error(`Unhandled Error - ${err.stack || err}`);
   return res.status(500).json({
     success: false,
     statusCode: 500,

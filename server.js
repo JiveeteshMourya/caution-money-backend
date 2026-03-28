@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
+import logger from "./src/utils/logger.js";
 
 dotenv.config();
 
@@ -49,7 +50,15 @@ app.use("/api/", limiter);
 app.use("/api/auth/", authLimiter);
 
 app.use(express.json({ limit: "10kb" }));
-app.use(morgan("dev"));
+
+const isProd = process.env.NODE_ENV === "production";
+if (!isProd) {
+  app.use(
+    morgan(":method :url :status :res[content-length] - :response-time ms", {
+      stream: { write: (message) => logger.http(message.trim()) },
+    })
+  );
+}
 
 // Routes
 app.use("/api/auth", authRoutes);

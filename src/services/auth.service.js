@@ -2,6 +2,7 @@ import * as studentRepo from "../repositories/student.repository.js";
 import * as adminRepo from "../repositories/admin.repository.js";
 import { signToken } from "../utils/tokenHelper.js";
 import ServerError from "../errors/ServerError.js";
+import logger from "../utils/logger.js";
 
 export const registerStudent = async (body) => {
   const {
@@ -16,8 +17,12 @@ export const registerStudent = async (body) => {
   } = body;
 
   const exists = await studentRepo.findByEnrollment(enrollmentNumber);
-  if (exists)
+  if (exists) {
+    logger.warn(
+      `registerStudent - enrollment already exists: ${enrollmentNumber}`
+    );
     throw new ServerError(409, "Enrollment number already registered");
+  }
 
   const student = await studentRepo.create({
     enrollmentNumber: enrollmentNumber.toUpperCase(),
@@ -30,6 +35,7 @@ export const registerStudent = async (body) => {
     passoutYear,
   });
 
+  logger.info(`registerStudent - created student: ${student._id}`);
   const token = signToken(student._id, "student");
   return {
     message: "Registration successful",
@@ -49,20 +55,31 @@ export const loginStudent = async ({ enrollmentNumber, password }) => {
   const student =
     await studentRepo.findByEnrollmentWithPassword(enrollmentNumber);
 
-  if (!student) throw new ServerError(401, "Invalid credentials");
-  if (student.isLocked())
+  if (!student) {
+    logger.warn(
+      `loginStudent - no student found with enrollment: ${enrollmentNumber}`
+    );
+    throw new ServerError(401, "Invalid credentials");
+  }
+  if (student.isLocked()) {
+    logger.warn(`loginStudent - account locked: ${enrollmentNumber}`);
     throw new ServerError(
       423,
       "Account locked due to too many failed attempts. Try again in 2 hours."
     );
+  }
 
   const isMatch = await student.comparePassword(password);
   if (!isMatch) {
-    await student.incLoginAttempts();
+    logger.warn(
+      `loginStudent - invalid credentials for student: ${student._id}`
+    );
+    await studentRepo.incLoginAttempts(student);
     throw new ServerError(401, "Invalid credentials");
   }
 
   await studentRepo.updateLoginSuccess(student._id);
+  logger.info(`loginStudent - login success: ${student._id}`);
 
   const token = signToken(student._id, "student");
   return {
@@ -83,18 +100,24 @@ export const loginStudent = async ({ enrollmentNumber, password }) => {
 export const loginAdmin = async ({ email, password }) => {
   const admin = await adminRepo.findByEmailWithPassword(email);
 
-  if (!admin || !admin.isActive)
+  if (!admin || !admin.isActive) {
+    logger.warn(`loginAdmin - no admin found or inactive: ${email}`);
     throw new ServerError(401, "Invalid credentials or account inactive");
-  if (admin.isLocked && admin.isLocked())
+  }
+  if (admin.isLocked && admin.isLocked()) {
+    logger.warn(`loginAdmin - account locked: ${email}`);
     throw new ServerError(423, "Account locked. Contact super admin.");
+  }
 
   const isMatch = await admin.comparePassword(password);
   if (!isMatch) {
+    logger.warn(`loginAdmin - invalid credentials for admin: ${admin._id}`);
     await adminRepo.incrementLoginAttempts(admin._id);
     throw new ServerError(401, "Invalid credentials");
   }
 
   await adminRepo.updateLoginSuccess(admin._id);
+  logger.info(`loginAdmin - login success: ${admin._id}`);
 
   const token = signToken(admin._id, admin.role);
   return {
