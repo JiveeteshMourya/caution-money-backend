@@ -19,6 +19,7 @@ import {
   processRefund,
   getDashboardStats,
 } from "../controllers/application.controller.js";
+import wrapAsync from "../utils/wrapAsync.js";
 
 const router = express.Router();
 
@@ -27,26 +28,26 @@ router.post(
   protectStudent,
   submitApplicationRules,
   validate,
-  submitApplication
+  wrapAsync(submitApplication)
 );
-router.get("/my", protectStudent, getMyApplication);
-router.patch("/bank-details", protectStudent, updateBankDetails);
+router.get("/my", protectStudent, wrapAsync(getMyApplication));
+router.patch("/bank-details", protectStudent, wrapAsync(updateBankDetails));
 
-router.get("/all", protectAdmin, getAllApplications);
-router.get("/stats/dashboard", protectAdmin, getDashboardStats);
-router.get("/:id", protectAdmin, getApplicationById);
+router.get("/all", protectAdmin, wrapAsync(getAllApplications));
+router.get("/stats/dashboard", protectAdmin, wrapAsync(getDashboardStats));
+router.get("/:id", protectAdmin, wrapAsync(getApplicationById));
 router.patch(
   "/:id/clearance",
   protectAdmin,
   updateClearanceRules,
   validate,
-  updateClearance
+  wrapAsync(updateClearance)
 );
 router.patch(
   "/:id/refund",
   protectAdmin,
   restrictTo("accounts", "superadmin"),
-  processRefund
+  wrapAsync(processRefund)
 );
 
 export default router;

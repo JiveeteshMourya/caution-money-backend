@@ -12,6 +12,7 @@ import {
   loginAdmin,
   getMe,
 } from "../controllers/auth.controller.js";
+import wrapAsync from "../utils/wrapAsync.js";
 
 const router = express.Router();
 
@@ -19,10 +20,15 @@ router.post(
   "/student/register",
   studentRegisterRules,
   validate,
-  registerStudent
+  wrapAsync(registerStudent)
 );
-router.post("/student/login", studentLoginRules, validate, loginStudent);
-router.post("/admin/login", adminLoginRules, validate, loginAdmin);
-router.get("/me", protect, getMe);
+router.post(
+  "/student/login",
+  studentLoginRules,
+  validate,
+  wrapAsync(loginStudent)
+);
+router.post("/admin/login", adminLoginRules, validate, wrapAsync(loginAdmin));
+router.get("/me", protect, wrapAsync(getMe));
 
 export default router;
