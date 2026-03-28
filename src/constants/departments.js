@@ -1,14 +1,4 @@
-export const DEPARTMENTS = [
-  "CSE",
-  "IT",
-  "ECE",
-  "ME",
-  "CE",
-  "EE",
-  "MCA",
-  "MBA",
-  "Other",
-];
+export const DEPARTMENTS = ["CS", "PHY", "CHE", "MATH", "BIO-TECH"];
 
 export const CLEARANCE_TYPES = [
   "library",

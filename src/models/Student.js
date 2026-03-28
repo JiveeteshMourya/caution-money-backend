@@ -20,7 +20,7 @@ const studentSchema = new mongoose.Schema(
     department: {
       type: String,
       required: true,
-      enum: ["CSE", "IT", "ECE", "ME", "CE", "EE", "MCA", "MBA", "Other"],
+      enum: ["CS", "PHY", "CHE", "MATH", "BIO-TECH"],
     },
     dateOfBirth: { type: Date, required: true },
     isHosteller: { type: Boolean, default: false },

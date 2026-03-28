@@ -57,21 +57,48 @@ const seed = async () => {
       isActive: true,
     },
     {
-      name: "CSE HOD",
-      email: "cse@iehe.ac.in",
+      name: "CS HOD",
+      email: "cs@iehe.ac.in",
       password: await bcrypt.hash("Dept@123", 12),
       role: "department",
-      department: "CSE",
-      adminId: "CSE001",
+      department: "CS",
+      adminId: "CS001",
       isActive: true,
     },
     {
-      name: "IT HOD",
-      email: "it@iehe.ac.in",
+      name: "Physics HOD",
+      email: "phy@iehe.ac.in",
       password: await bcrypt.hash("Dept@123", 12),
       role: "department",
-      department: "IT",
-      adminId: "IT001",
+      department: "PHY",
+      adminId: "PHY001",
+      isActive: true,
+    },
+    {
+      name: "Chemistry HOD",
+      email: "che@iehe.ac.in",
+      password: await bcrypt.hash("Dept@123", 12),
+      role: "department",
+      department: "CHE",
+      adminId: "CHE001",
+      isActive: true,
+    },
+    {
+      name: "Mathematics HOD",
+      email: "math@iehe.ac.in",
+      password: await bcrypt.hash("Dept@123", 12),
+      role: "department",
+      department: "MATH",
+      adminId: "MATH001",
+      isActive: true,
+    },
+    {
+      name: "Bio-Tech HOD",
+      email: "biotech@iehe.ac.in",
+      password: await bcrypt.hash("Dept@123", 12),
+      role: "department",
+      department: "BIO-TECH",
+      adminId: "BT001",
       isActive: true,
     },
     {
@@ -93,8 +120,11 @@ const seed = async () => {
   console.log("Library     : library@iehe.ac.in    / Lib@123");
   console.log("Sports      : sports@iehe.ac.in     / Sports@123");
   console.log("Hostel      : hostel@iehe.ac.in     / Hostel@123");
-  console.log("CSE Dept    : cse@iehe.ac.in        / Dept@123");
-  console.log("IT Dept     : it@iehe.ac.in         / Dept@123");
+  console.log("CS Dept     : cs@iehe.ac.in         / Dept@123");
+  console.log("PHY Dept    : phy@iehe.ac.in        / Dept@123");
+  console.log("CHE Dept    : che@iehe.ac.in        / Dept@123");
+  console.log("MATH Dept   : math@iehe.ac.in       / Dept@123");
+  console.log("BIO-TECH    : biotech@iehe.ac.in    / Dept@123");
   console.log("Accounts    : accounts@iehe.ac.in   / Acc@123");
   console.log("─────────────────────────────────────────");
   await mongoose.disconnect();
