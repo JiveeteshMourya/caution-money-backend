@@ -3,7 +3,7 @@ const REQUIRED_ENV_VARS = [
   "JWT_SECRET",
   "PORT",
   "NODE_ENV",
-  "FRONTEND_URL",
+  "CORS_ORIGIN",
 ];
 
 export const validateEnv = () => {

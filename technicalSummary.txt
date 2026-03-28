@@ -66,7 +66,7 @@
     4.  app.use(helmet())
           → security headers — responses pe lag jaate hain automatically
 
-    5.  app.use(cors({ origin: FRONTEND_URL, credentials: true }))
+    5.  app.use(cors({ origin: CORS_ORIGIN, credentials: true }))
           → sirf whitelisted origin allow karo
 
     6.  app.use('/api/', limiter)
@@ -569,7 +569,7 @@
 ------------------------------------------------------------------------------
 
   cors({
-    origin: process.env.FRONTEND_URL,   ← exact match, no wildcard
+    origin: process.env.CORS_ORIGIN,   ← exact match, no wildcard
     credentials: true                    ← cookies future ke liye ready
   })
 
@@ -632,7 +632,7 @@
   JWT_EXPIRE      Yes        Token TTL — "7d", "24h", "30m" format
   NODE_ENV        Yes        'development' | 'production'
                              development = stack traces in errors + verbose logs
-  FRONTEND_URL    Yes        Exact origin for CORS — trailing slash mat daal
+  CORS_ORIGIN    Yes        Exact origin for CORS — trailing slash mat daal
   ──────────────────────────────────────────────────────────────────────────
 
   .env file .gitignore mein hai. Wahan rahegi. GitHub pe nahi jaayegi.

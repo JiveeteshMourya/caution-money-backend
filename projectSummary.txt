@@ -342,7 +342,7 @@ PROJECT KAISE CHALATE HAIN
   JWT_SECRET    → JWT sign karne ki secret key (strong rakhna)
   JWT_EXPIRE    → Token kitne time tak valid rahega (default: 7 din)
   NODE_ENV      → "development" ya "production"
-  FRONTEND_URL  → Frontend ka URL (CORS ke liye)
+  CORS_ORIGIN  → Frontend ka URL (CORS ke liye)
 
 
 ==============================================================================
