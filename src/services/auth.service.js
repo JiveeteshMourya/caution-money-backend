@@ -104,7 +104,7 @@ export const loginAdmin = async ({ email, password }) => {
     logger.warn(`loginAdmin - no admin found or inactive: ${email}`);
     throw new ServerError(401, "Invalid credentials or account inactive");
   }
-  if (admin.isLocked && admin.isLocked()) {
+  if (admin.isLocked()) {
     logger.warn(`loginAdmin - account locked: ${email}`);
     throw new ServerError(423, "Account locked. Contact super admin.");
   }

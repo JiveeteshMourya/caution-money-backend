@@ -91,6 +91,9 @@ const applicationSchema = new mongoose.Schema(
 // Compute overall status before save
 applicationSchema.pre("save", function (next) {
   this.lastUpdated = new Date();
+
+  if (this.isNew) return next();
+
   const c = this.clearances;
   const required = ["library", "sports", "department", "accounts"];
   if (this.isHosteller) required.push("hostel");

@@ -18,7 +18,7 @@ export const findAll = (query, page, limit) =>
   Application.find(query)
     .sort({ submittedAt: -1 })
     .skip((page - 1) * limit)
-    .limit(Number(limit));
+    .limit(limit);
 
 export const countDocuments = (query) => Application.countDocuments(query);
 

@@ -86,7 +86,11 @@ export const updateBankDetails = async (studentId, updates) => {
 };
 
 export const getAllApplications = async (admin, queryParams) => {
-  const { status, department, page = 1, limit = 20, search } = queryParams;
+  const { status, department, page, limit, search } = queryParams;
+
+  const parsedPage = Math.max(1, parseInt(page) || 1);
+  const parsedLimit = Math.min(100, Math.max(1, parseInt(limit) || 20));
+
   const query = {};
   if (status) query.overallStatus = status;
   if (department) query.department = department;
@@ -99,7 +103,7 @@ export const getAllApplications = async (admin, queryParams) => {
   if (admin.role === "department") query.department = admin.department;
 
   const total = await appRepo.countDocuments(query);
-  const apps = await appRepo.findAll(query, page, limit);
+  const apps = await appRepo.findAll(query, parsedPage, parsedLimit);
 
   logger.info(
     `getAllApplications - fetched ${total} total by admin: ${admin._id}`
@@ -107,8 +111,8 @@ export const getAllApplications = async (admin, queryParams) => {
   return {
     applications: apps,
     total,
-    pages: Math.ceil(total / limit),
-    current: Number(page),
+    pages: Math.ceil(total / parsedLimit),
+    current: parsedPage,
   };
 };
 
@@ -171,7 +175,10 @@ export const updateClearance = async (applicationId, admin, body) => {
   const allDeptCleared = required.every(
     (k) => app.clearances[k].status === "cleared"
   );
-  if (allDeptCleared && clearanceType !== "accounts") {
+  const alreadyForwarded = app.timeline.some(
+    (t) => t.event === "Forwarded to Accounts"
+  );
+  if (allDeptCleared && clearanceType !== "accounts" && !alreadyForwarded) {
     app.timeline.push({
       event: "Forwarded to Accounts",
       description:

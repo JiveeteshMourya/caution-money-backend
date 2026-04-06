@@ -7,6 +7,7 @@ import {
 import {
   submitApplicationRules,
   updateClearanceRules,
+  updateBankDetailsRules,
 } from "../validators/application.validators.js";
 import { validate } from "../validators/validate.js";
 import {
@@ -31,7 +32,13 @@ router.post(
   wrapAsync(submitApplication)
 );
 router.get("/my", protectStudent, wrapAsync(getMyApplication));
-router.patch("/bank-details", protectStudent, wrapAsync(updateBankDetails));
+router.patch(
+  "/bank-details",
+  protectStudent,
+  updateBankDetailsRules,
+  validate,
+  wrapAsync(updateBankDetails)
+);
 
 router.get("/all", protectAdmin, wrapAsync(getAllApplications));
 router.get("/stats/dashboard", protectAdmin, wrapAsync(getDashboardStats));
