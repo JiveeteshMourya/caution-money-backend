@@ -11,8 +11,6 @@ const clearanceSchema = new mongoose.Schema({
   updatedByName: { type: String },
   updatedAt: { type: Date },
   remarks: { type: String, default: "" },
-  noDuesMode: { type: String, enum: ["online", "offline"], default: "online" },
-  noDuesImageId: { type: mongoose.Schema.Types.ObjectId, ref: "Image" },
 });
 
 const applicationSchema = new mongoose.Schema(
@@ -72,6 +70,13 @@ const applicationSchema = new mongoose.Schema(
     },
     refundProcessedAt: { type: Date },
     refundTransactionId: { type: String },
+
+    noDuesMode: {
+      type: String,
+      enum: ["online", "offline"],
+      default: "online",
+    },
+    noDuesImageId: { type: mongoose.Schema.Types.ObjectId, ref: "Image" },
 
     declaration: { type: Boolean, required: true, default: false },
     submittedAt: { type: Date, default: Date.now },

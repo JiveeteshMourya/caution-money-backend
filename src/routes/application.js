@@ -8,7 +8,6 @@ import {
   submitApplicationRules,
   updateClearanceRules,
   updateBankDetailsRules,
-  submitOfflineNoDuesRules,
 } from "../validators/application.validators.js";
 import { validate } from "../validators/validate.js";
 import {
@@ -44,11 +43,9 @@ router.patch(
 );
 
 router.patch(
-  "/my/offline-noDues/:clearanceType",
+  "/my/offline-noDues",
   protectStudent,
   upload.single("noDuesImage"),
-  submitOfflineNoDuesRules,
-  validate,
   wrapAsync(submitOfflineNoDues)
 );
 

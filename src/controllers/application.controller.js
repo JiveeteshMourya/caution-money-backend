@@ -69,13 +69,9 @@ export const processRefund = async (req, res) => {
 
 export const submitOfflineNoDues = async (req, res) => {
   logger.http(
-    `submitOfflineNoDues - PATCH ${req.originalUrl} student=${req.user._id} clearanceType=${req.params.clearanceType}`
+    `submitOfflineNoDues - PATCH ${req.originalUrl} student=${req.user._id}`
   );
-  const result = await appService.submitOfflineNoDues(
-    req.user._id,
-    req.params.clearanceType,
-    req.file
-  );
+  const result = await appService.submitOfflineNoDues(req.user._id, req.file);
   res.status(201).json(new ServerResponse(201, result));
 };
 

@@ -231,7 +231,7 @@ export const processRefund = async (applicationId, admin) => {
   };
 };
 
-export const submitOfflineNoDues = async (studentId, clearanceType, file) => {
+export const submitOfflineNoDues = async (studentId, file) => {
   const app = await appRepo.findByStudentId(studentId);
   if (!app) {
     logger.warn(
@@ -258,19 +258,19 @@ export const submitOfflineNoDues = async (studentId, clearanceType, file) => {
     file.mimetype
   );
 
-  app.clearances[clearanceType].noDuesMode = "offline";
-  app.clearances[clearanceType].noDuesImageId = imageId;
+  app.noDuesMode = "offline";
+  app.noDuesImageId = imageId;
 
   app.timeline.push({
     event: "Offline No-Dues Submitted",
-    description: `Student submitted offline no-dues image for ${clearanceType} clearance.`,
+    description: "Student submitted offline no-dues form image.",
     performedBy: app.studentName,
     role: "student",
   });
 
   await app.save();
   logger.info(
-    `submitOfflineNoDues - ${clearanceType} offline no-dues saved for student: ${studentId}`
+    `submitOfflineNoDues - offline no-dues saved for student: ${studentId}`
   );
   return {
     message: "Offline no-dues submitted successfully",
