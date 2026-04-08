@@ -50,9 +50,24 @@ KYA KIYA:
           - Pre-save hook jo automatically overall status update karta hai.
             Schema khud sochta hai. Literally smarter than us.
           - Application ID generation (IEHE-[timestamp] format)
+          - noDuesMode aur noDuesImageId fields add kiye application root pe —
+            student ne offline form submit kiya ya nahi, aur agar kiya toh
+            kaun si image. Har clearance pe alag nahi — ek form, ek image,
+            poori application ke liye. Clean design.
+
+      * Image Schema (src/models/imageModel.js)
+          - Naya schema banaya images store karne ke liye
+          - fileName, mimeType, data (Buffer) — binary image seedha MongoDB mein
+          - timestamps automatic — kab upload hua, sab record
 
   - server.js setup kiya — pura middleware stack, rate limiting, health check,
     centralized error handling. Foundation rakhi poori building ki.
+  - Image save pipeline banaya — do utilities jo milke kaam karti hain:
+      * saveImageToDb(buffer, originalName, mimeType) — compress karo, MongoDB
+        mein save karo, imageId return karo. Disk ka koi scene nahi — pure
+        in-memory. Vercel pe bhi kaam karta hai.
+      * imgCompress(buffer, mimeType, opts) — sharp se compress karta hai.
+        Agar fail ho toh original buffer return — graceful fallback built-in.
   - Saare constants define kiye:
       * departments.js  — DEPARTMENTS, CLEARANCE_TYPES, CLEARANCE_ROLE_MAP
       * statuses.js     — APPLICATION_STATUS, CLEARANCE_STATUS, REFUND_STATUS
@@ -63,6 +78,8 @@ KYA KIYA:
 
 KEY FILES:
   src/models/Student.js | src/models/Admin.js | src/models/Application.js
+  src/models/imageModel.js
+  src/utils/saveImageToDb.js | src/utils/imgCompress.js
   src/constants/departments.js | src/constants/statuses.js | src/constants/roles.js
   server.js
 
@@ -94,6 +111,9 @@ KEY FILES:
   src/services/auth.service.js | src/controllers/auth.controller.js
   src/routes/auth.js | src/utils/tokenHelper.js
 
+  (Dheeraj ki territory mein koi changes nahi aayi is round mein. Auth solid
+  tha toh touch nahi kiya. Agar toot-pha nahi hai toh haath mat lagao.)
+
 --------------------------------------------------------------------------------
 3. AISHWARY  |  "Student ka true bestie" guy  |  Student Module Developer
 --------------------------------------------------------------------------------
@@ -105,9 +125,15 @@ KYA KIYA:
     Naam nahi badal sakta. Hum jaante hain tu kaun hai bhai.
   - Student-facing application flow build kiya — ye wala flow toh seedha
     student ke haath mein hai:
-      * POST /api/application/submit     — "Le bhai, ye raha mera application"
-      * GET  /api/application/my        — "Mera status kya hai abhi?"
-      * PATCH /api/application/bank-details — "Ek baar aur mauka do, galat tha"
+      * POST  /api/application/submit          — "Le bhai, ye raha mera application"
+      * GET   /api/application/my              — "Mera status kya hai abhi?"
+      * PATCH /api/application/bank-details    — "Ek baar aur mauka do, galat tha"
+      * PATCH /api/application/my/offline-noDues — "Bhaiya sign kar diye, photo lo"
+          Naya endpoint. Student physically form sign karwake ek photo upload
+          karta hai — sab authorities ke signs ek hi form pe. Multer se buffer
+          aata hai, saveImageToDb se save hota hai, application pe noDuesMode
+          "offline" aur noDuesImageId set. Admin baad mein image dekh ke apni
+          clearance approve karta hai jaise pehle karta tha — unka flow same hai.
   - Bank details update pe guard lagaya — refund ho gaya?
     Ab bank details nahi badle. Too late bestie, paisa ja chuka.
   - Pehla timeline entry submission pe daala — audit trail ka inauguration
@@ -116,7 +142,8 @@ KYA KIYA:
 KEY FILES:
   src/services/student.service.js | src/controllers/student.controller.js
   src/routes/student.js | src/repositories/student.repository.js
-  src/services/application.service.js (submitApplication, getMyApplication, updateBankDetails)
+  src/services/application.service.js (submitApplication, getMyApplication,
+                                        updateBankDetails, submitOfflineNoDues)
 
 --------------------------------------------------------------------------------
 4. DHRUV  |  "5 departments ko razi karo" guy  |  Clearance Workflow Dev
@@ -195,10 +222,19 @@ KYA KIYA:
   - env.js — startup pe required env vars check. Koi missing? Process exit.
     No env, no party. Zero tolerance.
   - db.js — MongoDB connection. Simple but iske bina sab kuch zero hai.
+  - multerMiddleware.js banaya — student image upload ke liye:
+      * memoryStorage use kiya — disk pe kuch nahi likhta. Vercel ka filesystem
+        read-only hai, toh diskStorage wahan fail hoti. Memory mein rakho,
+        seedha MongoDB bhejo. No temp files, no ENOENT, no drama.
+      * Sirf images accept karta hai (image/* MIME types). 5MB limit.
+      * req.file.buffer mein milta hai file — clean aur simple.
+  - server.js mein image routes mount kiye — /api/image pe. Bina iske image
+    retrieve hoti hi nahi. Foundation ka kaam aise hi hota hai.
 
 KEY FILES:
-  src/middleware/auth.js | src/config/env.js | src/config/db.js
-  server.js (middleware configuration wale sections)
+  src/middleware/auth.js | src/middleware/multerMiddleware.js
+  src/config/env.js | src/config/db.js
+  server.js (middleware configuration + image route mount)
 
 --------------------------------------------------------------------------------
 7. AJAY  |  "Ye data galat hai, nahi dunga" guy  |  Validation & Error Dev
@@ -258,15 +294,25 @@ KYA KIYA:
       * sendSuccess() — sabke API responses ka ek consistent format.
         Consistency is literally the bare minimum.
 
+  - Image retrieval endpoint banaya — offline no-dues upload ke baad admin
+    ya frontend image kaise dekhega? Sumit ne handle kiya:
+      * getImageById() — MongoDB se image fetch karo, Content-Type header set
+        karo, binary data seedha response mein bhejo. <img src="/api/image/id">
+        se seedha kaam karta hai — koi JSON wrapper nahi, raw image hi milti hai.
+      * GET /api/image/:id — koi bhi image ID se retrieve kar sakta hai.
+        No auth required — ID hi unguessable mongoId hai, security wahan se aati hai.
+
   Routes:
       GET   /api/application/all              — "Sab dikhao mujhe"
       GET   /api/application/stats/dashboard  — "Numbers dikhao, mujhe data chahiye"
       GET   /api/application/:id              — "Sirf ye wala dikhao"
       PATCH /api/application/:id/refund       — "Paisa bhejo finally"
+      GET   /api/image/:id                    — "Ye image dikhao jisme sign hain"
 
 KEY FILES:
   src/services/application.service.js (processRefund, getDashboardStats, getAllApplications, getApplicationById)
   src/controllers/application.controller.js | src/routes/application.js
+  src/controllers/imageControllers.js | src/routes/imageRoutes.js
   src/utils/response.js
 
 ================================================================================
@@ -302,14 +348,18 @@ ENDPOINT SUMMARY — KAUN SA ROUTE KISNE BANAYA
     GET    /api/admin/all
 
   Application Routes (src/routes/application.js)  Shared dukaan
-    POST   /api/application/submit           — Aishwary
-    GET    /api/application/my               — Aishwary
-    PATCH  /api/application/bank-details     — Aishwary
-    GET    /api/application/all              — Sumit
-    GET    /api/application/stats/dashboard  — Sumit
-    GET    /api/application/:id              — Sumit
-    PATCH  /api/application/:id/clearance    — Dhruv
-    PATCH  /api/application/:id/refund       — Sumit
+    POST   /api/application/submit                — Aishwary
+    GET    /api/application/my                    — Aishwary
+    PATCH  /api/application/bank-details          — Aishwary
+    PATCH  /api/application/my/offline-noDues     — Aishwary  [NEW]
+    GET    /api/application/all                   — Sumit
+    GET    /api/application/stats/dashboard       — Sumit
+    GET    /api/application/:id                   — Sumit
+    PATCH  /api/application/:id/clearance         — Dhruv
+    PATCH  /api/application/:id/refund            — Sumit
+
+  Image Routes (src/routes/imageRoutes.js)        Sumit ka naya kaam
+    GET    /api/image/:id                         — Sumit  [NEW]
 
 ================================================================================
    Is backend pe 8 logon ne kaam kiya. 1 ne socha, 7 ne execute kiya.

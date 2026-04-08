@@ -83,7 +83,7 @@
           → request logging stdout pe
 
    10.  Route mounts
-          → /api/auth, /api/student, /api/admin, /api/application
+          → /api/auth, /api/student, /api/admin, /api/application, /api/image
 
    11.  app.use(errorHandler)
           → SABSE AAKHIR mein — global error catcher
@@ -256,6 +256,13 @@
                                   library / sports / hostel / department / accounts
   overallStatus        String     enum — KABHI MANUALLY SET NAHI KARO
                                   (pre-save hook compute karta hai)
+  noDuesMode           String     enum: 'online' | 'offline', default: 'online'
+                                  'online'  → admin ne digitally clear kiya
+                                  'offline' → student ne physical form upload kiya
+  noDuesImageId        ObjectId   ref: 'Image' — null jab tak upload nahi hua.
+                                  Application root pe hai, clearance pe nahi —
+                                  ek form mein sab authorities ke signs hote hain,
+                                  isliye ek hi image poori application ke liye.
   refundAmount         Number     default: 5000 (hardcoded ₹5000)
   refundStatus         String     enum: pending/approved/processed/rejected
   refundProcessedAt    Date       —
@@ -280,6 +287,18 @@
 
   'na' status ka matlab hostel clearance — non-hosteller students ke liye.
   Automatically set hota hai at submit time based on isHosteller.
+
+  NOTE: noDuesMode aur noDuesImageId clearance pe NAHI hain. Ye dono
+  application root pe hain (upar dekho). Ek physical form mein sab
+  departments ke signs hote hain — toh ek image hi kaafi hai. Har
+  clearance pe alag image ka koi sense nahi tha.
+
+  ── IMAGE SCHEMA (src/models/imageModel.js) ─────────────────────────────────
+
+  fileName   String   — original file name
+  mimeType   String   — 'image/jpeg', 'image/png', etc.
+  data       Buffer   — compressed image binary seedha MongoDB mein
+  timestamps          — createdAt, updatedAt automatic
 
 
 ------------------------------------------------------------------------------
@@ -663,6 +682,70 @@
     → Top-level await available hai — async IIFE ki zaroorat nahi
     → __dirname aur __filename directly available nahi —
        import.meta.url se banana padega agar kabhi chahiye ho
+
+
+------------------------------------------------------------------------------
+22. IMAGE UPLOAD SYSTEM — DISK SE DOOR, MEMORY SE YAAR
+------------------------------------------------------------------------------
+
+  Offline no-dues ke liye student ek image upload karta hai. Poora pipeline
+  in-memory chalta hai — disk ka koi involvement nahi. Kyun? Vercel ka
+  filesystem read-only hai. diskStorage wahan crash karta. memoryStorage
+  everywhere kaam karta hai — local bhi, Vercel bhi.
+
+  FLOW:
+
+    Frontend → multipart/form-data (field: noDuesImage)
+         ↓
+    multerMiddleware.js (memoryStorage, 5MB limit, image/* only)
+         ↓
+    req.file.buffer  ← file yahan hai, disk pe nahi
+         ↓
+    saveImageToDb(buffer, originalName, mimeType)
+         ↓
+    imgCompress(buffer, mimeType, { maxWidth: 1600, maxHeight: 1200, quality: 75 })
+       → sharp se compress karo
+       → agar fail ho? original buffer return, koi rona nahi — graceful fallback
+         ↓
+    Image.create({ fileName, mimeType, data: compressedBuffer })
+         ↓
+    imageDoc._id return karo (MongoDB ObjectId)
+         ↓
+    application.noDuesMode = 'offline'
+    application.noDuesImageId = imageId
+    application.save()
+
+  RETRIEVAL:
+
+    GET /api/image/:i_id
+      → Image.findById(i_id)
+      → res.set('Content-Type', image.mimeType)
+      → res.send(image.data)   ← raw binary, koi JSON nahi
+
+    Frontend use: <img src="/api/image/<noDuesImageId>" />
+    No auth required — ObjectId hi unguessable hai.
+
+  KEY FILES:
+
+    src/middleware/multerMiddleware.js  → upload config (memoryStorage, filter)
+    src/utils/imgCompress.js           → buffer in, compressed buffer out
+    src/utils/saveImageToDb.js         → compress + MongoDB mein save
+    src/models/imageModel.js           → Image schema (Buffer storage)
+    src/controllers/imageControllers.js → GET /image/:id endpoint
+    src/routes/imageRoutes.js          → route definition
+
+  MULTER CONFIG (current):
+
+    multer({
+      storage: multer.memoryStorage(),   ← disk nahi, memory — Vercel friendly
+      limits: { fileSize: 5 * 1024 * 1024 },  ← 5 MB max
+      fileFilter: (_, file, cb) =>
+        file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error(...))
+    })
+
+  IMGCOMPRESS OPTS (used in saveImageToDb):
+
+    { maxWidth: 1600, maxHeight: 1200, quality: 75, preferWebp: false }
 
 
 ==============================================================================

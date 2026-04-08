@@ -25,6 +25,10 @@ Ye backend ye sab handle karta hai:
   - 5 departments se clearance lena (library, sports, hostel, dept, accounts)
   - Har department ka apna admin login
   - Admins ke liye dashboard — kaun sa application kitne mein hai
+  - Offline no-dues mode — student physically form sign karwake photo upload
+    kar sakta hai, admin image dekh ke approve karta hai. Ek form, ek image,
+    sab departments ka ek saath kaam. Digital aur physical dono — jugaad nahi,
+    feature hai.
 
 
 ------------------------------------------------------------------------------
@@ -147,6 +151,13 @@ APPLICATION KI LIFE (Ek application ka poora safar)
   submitted          → Student ne form bhara. Ab wait.
        ↓
   under_review       → Admins dekh rahe hain. Ab aur wait.
+                       (Is stage pe student online ya offline choose kar sakta hai)
+                         ONLINE  → Admin seedha portal se clearance deta hai
+                         OFFLINE → Student physically no-dues form sign karwata hai,
+                                   ek photo upload karta hai, admin image dekh ke
+                                   portal se approve karta hai. Ek form, sab ke
+                                   signs — library, sports, hostel, dept — ek
+                                   jagah. One image to rule them all.
        ↓
   partially_cleared  → Kuch departments ne haan bola, baaki abhi soch rahe hain
        ↓
@@ -185,14 +196,18 @@ STUDENT
   PATCH /api/student/profile        → Mobile number ya bank details update karo
 
 APPLICATION
-  POST  /api/application/submit          → Application submit karo
-  GET   /api/application/my              → Apni application dekho
-  PATCH /api/application/bank-details    → Bank details update karo
-  GET   /api/application/all             → (Admin) Sabki applications dekho
-  GET   /api/application/stats/dashboard → (Admin) Dashboard numbers dekho
-  GET   /api/application/:id             → (Admin) Ek specific application dekho
-  PATCH /api/application/:id/clearance   → (Admin) Clearance approve/reject karo
-  PATCH /api/application/:id/refund      → (Accounts Admin) Refund process karo
+  POST  /api/application/submit               → Application submit karo
+  GET   /api/application/my                   → Apni application dekho
+  PATCH /api/application/bank-details         → Bank details update karo
+  PATCH /api/application/my/offline-noDues    → Offline no-dues form ki photo upload karo
+  GET   /api/application/all                  → (Admin) Sabki applications dekho
+  GET   /api/application/stats/dashboard      → (Admin) Dashboard numbers dekho
+  GET   /api/application/:id                  → (Admin) Ek specific application dekho
+  PATCH /api/application/:id/clearance        → (Admin) Clearance approve/reject karo
+  PATCH /api/application/:id/refund           → (Accounts Admin) Refund process karo
+
+IMAGE
+  GET   /api/image/:id       → Koi bhi uploaded image ID se seedha retrieve karo
 
 ADMIN
   GET   /api/admin/profile   → Admin apna profile dekhe
@@ -257,6 +272,22 @@ LOGIN / SECURITY KE LIYE
     "Bhai 15 minute mein 100 se zyada request mat maar." Spam aur
     brute-force attacks se bachne ke liye. Auth routes pe aur bhi
     strict — 10 attempts hi milte hain.
+
+FILE UPLOAD KE LIYE
+  multer
+    Students image upload karte hain offline no-dues ke liye. Multer ye sab
+    handle karta hai — incoming multipart/form-data request parse karo, file
+    ko memory mein rakho (disk pe nahi — Vercel pe disk read-only hai bhai),
+    size aur type check karo. memoryStorage use hota hai taaki Vercel jaisi
+    serverless environments pe bhi kaam kare. req.file.buffer mein milta hai
+    file — seedha MongoDB tak bhejo bina disk chhue.
+
+  sharp
+    Image compression library. Upload hoti image ko resize aur compress karta
+    hai (max 1600x1200, quality 75%) — taaki database mein 5MB raw image
+    save karne ki zaroorat na ho. Agar compression fail ho toh original buffer
+    seedha save ho jaata hai — graceful fallback. sharp native binaries use
+    karta hai toh fast bhi hai.
 
 INPUT CHECK KARNE KE LIYE
   express-validator
