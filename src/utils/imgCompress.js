@@ -1,8 +1,7 @@
 import sharp from "sharp";
-import fs from "fs/promises";
 import logger from "./logger.js";
 
-export const imgCompress = async (inputPath, mimeType, opts = {}) => {
+export const imgCompress = async (inputBuffer, mimeType, opts = {}) => {
   const {
     maxWidth = 1920,
     maxHeight = 1080,
@@ -11,7 +10,6 @@ export const imgCompress = async (inputPath, mimeType, opts = {}) => {
   } = opts;
 
   try {
-    const inputBuffer = await fs.readFile(inputPath);
     const pipeline = sharp(inputBuffer, { failOnError: false });
     const meta = await pipeline.metadata().catch(() => ({}));
     const detectedFormat = (meta.format || "").toLowerCase();
@@ -68,16 +66,12 @@ export const imgCompress = async (inputPath, mimeType, opts = {}) => {
       mimeType: mimeType || `image/${detectedFormat || "unknown"}`,
     };
   } catch (err) {
-    // If something odd happens, fallback to returning original file buffer
-    try {
-      const original = await fs.readFile(inputPath);
-      return {
-        buffer: original,
-        mimeType: mimeType || "application/octet-stream",
-      };
-    } catch (readErr) {
-      // If even reading the original fails, rethrow the original error
-      throw err;
-    }
+    logger.warn(
+      `imgCompress - compression failed (${err.message}), returning original buffer`
+    );
+    return {
+      buffer: inputBuffer,
+      mimeType: mimeType || "application/octet-stream",
+    };
   }
 };

@@ -253,7 +253,7 @@ export const submitOfflineNoDues = async (studentId, file) => {
   }
 
   const imageId = await saveImageToDb(
-    file.path,
+    file.buffer,
     file.originalname,
     file.mimetype
   );
