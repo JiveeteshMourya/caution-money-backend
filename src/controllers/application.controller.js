@@ -67,6 +67,18 @@ export const processRefund = async (req, res) => {
   res.status(200).json(new ServerResponse(200, result));
 };
 
+export const submitOfflineNoDues = async (req, res) => {
+  logger.http(
+    `submitOfflineNoDues - PATCH ${req.originalUrl} student=${req.user._id} clearanceType=${req.params.clearanceType}`
+  );
+  const result = await appService.submitOfflineNoDues(
+    req.user._id,
+    req.params.clearanceType,
+    req.file
+  );
+  res.status(201).json(new ServerResponse(201, result));
+};
+
 export const getDashboardStats = async (req, res) => {
   logger.http(`getDashboardStats - GET ${req.originalUrl}`);
   const result = await appService.getDashboardStats(req.user);

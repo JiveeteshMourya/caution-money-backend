@@ -18,6 +18,7 @@ import authRoutes from "./src/routes/auth.js";
 import studentRoutes from "./src/routes/student.js";
 import adminRoutes from "./src/routes/admin.js";
 import applicationRoutes from "./src/routes/application.js";
+import imageRoutes from "./src/routes/imageRoutes.js";
 
 import { errorHandler } from "./src/middleware/errorHandler.js";
 
@@ -76,6 +77,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/application", applicationRoutes);
+app.use("/api/image", imageRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
@@ -90,6 +92,6 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 IEHE Server running on port ${PORT}`);
+  console.log(`🚀 IEHE Caution Money Server running on port ${PORT}`);
   console.log(`📦 Environment: ${process.env.NODE_ENV}`);
 });

@@ -3,6 +3,7 @@ import { CLEARANCE_ROLE_MAP } from "../constants/departments.js";
 import { APPLICATION_STATUS } from "../constants/statuses.js";
 import ServerError from "../errors/ServerError.js";
 import logger from "../utils/logger.js";
+import { saveImageToDb } from "../utils/saveImageToDb.js";
 
 export const submitApplication = async (student, body) => {
   const { bankDetails, passoutYear, declaration } = body;
@@ -227,6 +228,53 @@ export const processRefund = async (applicationId, admin) => {
     message: "Refund processed successfully",
     transactionId: txnId,
     application: app,
+  };
+};
+
+export const submitOfflineNoDues = async (studentId, clearanceType, file) => {
+  const app = await appRepo.findByStudentId(studentId);
+  if (!app) {
+    logger.warn(
+      `submitOfflineNoDues - application not found for student: ${studentId}`
+    );
+    throw new ServerError(404, "Application not found");
+  }
+  if (app.refundStatus === "processed") {
+    logger.warn(
+      `submitOfflineNoDues - refund already processed for student: ${studentId}`
+    );
+    throw new ServerError(400, "Refund already processed");
+  }
+  if (!file) {
+    logger.warn(
+      `submitOfflineNoDues - no file uploaded for student: ${studentId}`
+    );
+    throw new ServerError(400, "No image uploaded");
+  }
+
+  const imageId = await saveImageToDb(
+    file.path,
+    file.originalname,
+    file.mimetype
+  );
+
+  app.clearances[clearanceType].noDuesMode = "offline";
+  app.clearances[clearanceType].noDuesImageId = imageId;
+
+  app.timeline.push({
+    event: "Offline No-Dues Submitted",
+    description: `Student submitted offline no-dues image for ${clearanceType} clearance.`,
+    performedBy: app.studentName,
+    role: "student",
+  });
+
+  await app.save();
+  logger.info(
+    `submitOfflineNoDues - ${clearanceType} offline no-dues saved for student: ${studentId}`
+  );
+  return {
+    message: "Offline no-dues submitted successfully",
+    noDuesImageId: imageId,
   };
 };
 

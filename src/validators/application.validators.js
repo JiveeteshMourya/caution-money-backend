@@ -1,4 +1,4 @@
-import { body } from "express-validator";
+import { body, param } from "express-validator";
 import { CLEARANCE_TYPES } from "../constants/departments.js";
 
 export const submitApplicationRules = [
@@ -14,6 +14,10 @@ export const updateClearanceRules = [
   body("clearanceType").isIn(CLEARANCE_TYPES),
   body("status").isIn(["cleared", "hold", "pending"]),
   body("reason").optional().isString().trim(),
+];
+
+export const submitOfflineNoDuesRules = [
+  param("clearanceType").isIn(["library", "sports", "hostel", "department"]),
 ];
 
 export const updateBankDetailsRules = [

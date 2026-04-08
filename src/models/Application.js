@@ -11,6 +11,8 @@ const clearanceSchema = new mongoose.Schema({
   updatedByName: { type: String },
   updatedAt: { type: Date },
   remarks: { type: String, default: "" },
+  noDuesMode: { type: String, enum: ["online", "offline"], default: "online" },
+  noDuesImageId: { type: mongoose.Schema.Types.ObjectId, ref: "Image" },
 });
 
 const applicationSchema = new mongoose.Schema(

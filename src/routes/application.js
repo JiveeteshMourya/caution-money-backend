@@ -8,6 +8,7 @@ import {
   submitApplicationRules,
   updateClearanceRules,
   updateBankDetailsRules,
+  submitOfflineNoDuesRules,
 } from "../validators/application.validators.js";
 import { validate } from "../validators/validate.js";
 import {
@@ -19,8 +20,10 @@ import {
   updateClearance,
   processRefund,
   getDashboardStats,
+  submitOfflineNoDues,
 } from "../controllers/application.controller.js";
 import wrapAsync from "../utils/wrapAsync.js";
+import { upload } from "../middleware/multerMiddleware.js";
 
 const router = express.Router();
 
@@ -38,6 +41,15 @@ router.patch(
   updateBankDetailsRules,
   validate,
   wrapAsync(updateBankDetails)
+);
+
+router.patch(
+  "/my/offline-noDues/:clearanceType",
+  protectStudent,
+  upload.single("noDuesImage"),
+  submitOfflineNoDuesRules,
+  validate,
+  wrapAsync(submitOfflineNoDues)
 );
 
 router.get("/all", protectAdmin, wrapAsync(getAllApplications));
