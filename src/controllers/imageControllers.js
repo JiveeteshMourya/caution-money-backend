@@ -17,6 +17,7 @@ export const getImageById = async (req, res) => {
   }
 
   logger.info(`getImageById - Image sent successfully id: ${i_id}`);
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
   res.set("Content-Type", image.mimeType);
   res.send(image.data);
 };
