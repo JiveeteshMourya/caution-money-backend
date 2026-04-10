@@ -20,6 +20,7 @@ import {
   processRefund,
   getDashboardStats,
   submitOfflineNoDues,
+  uploadDocuments,
 } from "../controllers/application.controller.js";
 import wrapAsync from "../utils/wrapAsync.js";
 import { upload } from "../middleware/multerMiddleware.js";
@@ -47,6 +48,17 @@ router.patch(
   protectStudent,
   upload.single("noDuesImage"),
   wrapAsync(submitOfflineNoDues)
+);
+
+router.patch(
+  "/my/documents",
+  protectStudent,
+  upload.fields([
+    { name: "tcOrAdmissionSlip", maxCount: 1 },
+    { name: "bankPassbook", maxCount: 1 },
+    { name: "feesSlip", maxCount: 1 },
+  ]),
+  wrapAsync(uploadDocuments)
 );
 
 router.get("/all", protectAdmin, wrapAsync(getAllApplications));

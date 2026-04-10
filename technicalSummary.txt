@@ -263,6 +263,14 @@
                                   Application root pe hai, clearance pe nahi —
                                   ek form mein sab authorities ke signs hote hain,
                                   isliye ek hi image poori application ke liye.
+
+  tcOrAdmissionSlipImageId ObjectId  ref: 'Image' — Step 3: TC ya PG admission slip.
+                                     null jab tak student documents upload na kare.
+  bankPassbookImageId      ObjectId  ref: 'Image' — Step 3: Bank passbook front page.
+  feesSlipImageId          ObjectId  ref: 'Image' — Step 3: Fees receipt/slip.
+                                     Teeno ek saath upload hote hain — partial upload
+                                     nahi hota. Ya teeno aaye ya koi nahi. Simple rule.
+
   refundAmount         Number     default: 5000 (hardcoded ₹5000)
   refundStatus         String     enum: pending/approved/processed/rejected
   refundProcessedAt    Date       —
@@ -693,27 +701,49 @@
   filesystem read-only hai. diskStorage wahan crash karta. memoryStorage
   everywhere kaam karta hai — local bhi, Vercel bhi.
 
-  FLOW:
+  DO FLOWS HAIN — same infrastructure, alag endpoints:
+
+  FLOW 1 — Offline No-Dues (single image):
 
     Frontend → multipart/form-data (field: noDuesImage)
          ↓
-    multerMiddleware.js (memoryStorage, 5MB limit, image/* only)
+    multerMiddleware.js → upload.single('noDuesImage')
          ↓
     req.file.buffer  ← file yahan hai, disk pe nahi
          ↓
     saveImageToDb(buffer, originalName, mimeType)
          ↓
-    imgCompress(buffer, mimeType, { maxWidth: 1600, maxHeight: 1200, quality: 75 })
-       → sharp se compress karo
-       → agar fail ho? original buffer return, koi rona nahi — graceful fallback
-         ↓
-    Image.create({ fileName, mimeType, data: compressedBuffer })
-         ↓
-    imageDoc._id return karo (MongoDB ObjectId)
+    imgCompress → sharp compress → Image.create → ObjectId return
          ↓
     application.noDuesMode = 'offline'
     application.noDuesImageId = imageId
     application.save()
+
+  FLOW 2 — Step 3 Document Upload (3 images ek saath):
+
+    Frontend → multipart/form-data
+               (fields: tcOrAdmissionSlip, bankPassbook, feesSlip)
+         ↓
+    multerMiddleware.js → upload.fields([...3 fields...])
+         ↓
+    req.files.tcOrAdmissionSlip[0].buffer
+    req.files.bankPassbook[0].buffer        ← teeno alag buffers
+    req.files.feesSlip[0].buffer
+         ↓
+    Promise.all([
+      saveImageToDb(tcFile...),
+      saveImageToDb(passbookFile...),      ← parallel — sequential nahi
+      saveImageToDb(feesSlipFile...),
+    ])
+         ↓
+    teeno ObjectIds return
+         ↓
+    application.tcOrAdmissionSlipImageId = id1
+    application.bankPassbookImageId      = id2
+    application.feesSlipImageId          = id3
+    application.save()
+
+  Koi ek file missing? → 400 error. Ya teeno ya kuch nahi. No half measures.
 
   RETRIEVAL:
 
@@ -738,10 +768,17 @@
 
     multer({
       storage: multer.memoryStorage(),   ← disk nahi, memory — Vercel friendly
-      limits: { fileSize: 5 * 1024 * 1024 },  ← 5 MB max
+      limits: { fileSize: 5 * 1024 * 1024 },  ← 5 MB max per file
       fileFilter: (_, file, cb) =>
         file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error(...))
     })
+
+    upload.single('noDuesImage')         ← offline no-dues ke liye
+    upload.fields([                      ← Step 3 document upload ke liye
+      { name: 'tcOrAdmissionSlip', maxCount: 1 },
+      { name: 'bankPassbook',      maxCount: 1 },
+      { name: 'feesSlip',          maxCount: 1 },
+    ])
 
   IMGCOMPRESS OPTS (used in saveImageToDb):
 

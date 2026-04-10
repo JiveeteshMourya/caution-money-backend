@@ -278,6 +278,70 @@ export const submitOfflineNoDues = async (studentId, file) => {
   };
 };
 
+export const uploadDocuments = async (studentId, files) => {
+  const app = await appRepo.findByStudentId(studentId);
+  if (!app) {
+    logger.warn(
+      `uploadDocuments - application not found for student: ${studentId}`
+    );
+    throw new ServerError(404, "Application not found");
+  }
+  if (app.refundStatus === "processed") {
+    logger.warn(
+      `uploadDocuments - refund already processed for student: ${studentId}`
+    );
+    throw new ServerError(400, "Refund already processed");
+  }
+
+  const tcFile = files?.tcOrAdmissionSlip?.[0];
+  const passbookFile = files?.bankPassbook?.[0];
+  const feesSlipFile = files?.feesSlip?.[0];
+
+  if (!tcFile || !passbookFile || !feesSlipFile) {
+    logger.warn(`uploadDocuments - missing files for student: ${studentId}`);
+    throw new ServerError(
+      400,
+      "All 3 documents are required: tcOrAdmissionSlip, bankPassbook, feesSlip"
+    );
+  }
+
+  const [tcOrAdmissionSlipImageId, bankPassbookImageId, feesSlipImageId] =
+    await Promise.all([
+      saveImageToDb(tcFile.buffer, tcFile.originalname, tcFile.mimetype),
+      saveImageToDb(
+        passbookFile.buffer,
+        passbookFile.originalname,
+        passbookFile.mimetype
+      ),
+      saveImageToDb(
+        feesSlipFile.buffer,
+        feesSlipFile.originalname,
+        feesSlipFile.mimetype
+      ),
+    ]);
+
+  app.tcOrAdmissionSlipImageId = tcOrAdmissionSlipImageId;
+  app.bankPassbookImageId = bankPassbookImageId;
+  app.feesSlipImageId = feesSlipImageId;
+
+  app.timeline.push({
+    event: "Documents Uploaded",
+    description:
+      "Student uploaded TC/PG admission slip, bank passbook, and fees slip.",
+    performedBy: app.studentName,
+    role: "student",
+  });
+
+  await app.save();
+  logger.info(`uploadDocuments - documents saved for student: ${studentId}`);
+  return {
+    message: "Documents uploaded successfully",
+    tcOrAdmissionSlipImageId,
+    bankPassbookImageId,
+    feesSlipImageId,
+  };
+};
+
 export const getDashboardStats = async (admin) => {
   const baseQuery =
     admin.role === "department" ? { department: admin.department } : {};

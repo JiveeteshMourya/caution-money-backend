@@ -15,7 +15,7 @@ export const imgCompress = async (inputBuffer, mimeType, opts = {}) => {
     const detectedFormat = (meta.format || "").toLowerCase();
 
     logger.info(
-      `imgCompress - inputPath=${inputPath}, mimeType=${mimeType}, detectedFormat=${detectedFormat}, pages=${meta.pages || 1}`
+      `imgCompress - inputSize=${inputBuffer.length}B, mimeType=${mimeType}, detectedFormat=${detectedFormat}, pages=${meta.pages || 1}`
     );
 
     if (

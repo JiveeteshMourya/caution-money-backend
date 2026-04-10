@@ -22,6 +22,9 @@ Isliye ye system banaya — taaki sab digitally ho aur koi excuse na bache.
 Ye backend ye sab handle karta hai:
   - Student ka registration aur login
   - Bank details deke refund application submit karna
+  - Document upload step — student 3 images upload karta hai: TC/PG admission
+    slip, bank passbook front page, aur fees slip. Teeno ek hi request mein,
+    ek saath save hote hain. Evidence collect karo, paisa baad mein.
   - 5 departments se clearance lena (library, sports, hostel, dept, accounts)
   - Har department ka apna admin login
   - Admins ke liye dashboard — kaun sa application kitne mein hai
@@ -48,6 +51,7 @@ Simple flow:
 
 Student ka poora safar:
   Register → Login → Bank Details Daal → Application Submit →
+  Documents Upload karo (TC/Admission Slip + Passbook + Fees Slip) →
   Clearances ka Wait karo (aur karo... aur karo...) → Paise wapas!
 
 Admin ka kaam:
@@ -200,6 +204,7 @@ APPLICATION
   GET   /api/application/my                   → Apni application dekho
   PATCH /api/application/bank-details         → Bank details update karo
   PATCH /api/application/my/offline-noDues    → Offline no-dues form ki photo upload karo
+  PATCH /api/application/my/documents        → TC/Admission slip + Passbook + Fees slip upload karo (Step 3)
   GET   /api/application/all                  → (Admin) Sabki applications dekho
   GET   /api/application/stats/dashboard      → (Admin) Dashboard numbers dekho
   GET   /api/application/:id                  → (Admin) Ek specific application dekho

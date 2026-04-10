@@ -78,6 +78,13 @@ const applicationSchema = new mongoose.Schema(
     },
     noDuesImageId: { type: mongoose.Schema.Types.ObjectId, ref: "Image" },
 
+    tcOrAdmissionSlipImageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Image",
+    },
+    bankPassbookImageId: { type: mongoose.Schema.Types.ObjectId, ref: "Image" },
+    feesSlipImageId: { type: mongoose.Schema.Types.ObjectId, ref: "Image" },
+
     declaration: { type: Boolean, required: true, default: false },
     submittedAt: { type: Date, default: Date.now },
     lastUpdated: { type: Date, default: Date.now },

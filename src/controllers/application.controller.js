@@ -67,6 +67,14 @@ export const processRefund = async (req, res) => {
   res.status(200).json(new ServerResponse(200, result));
 };
 
+export const uploadDocuments = async (req, res) => {
+  logger.http(
+    `uploadDocuments - PATCH ${req.originalUrl} student=${req.user._id}`
+  );
+  const result = await appService.uploadDocuments(req.user._id, req.files);
+  res.status(200).json(new ServerResponse(200, result));
+};
+
 export const submitOfflineNoDues = async (req, res) => {
   logger.http(
     `submitOfflineNoDues - PATCH ${req.originalUrl} student=${req.user._id}`

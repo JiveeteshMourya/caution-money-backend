@@ -54,6 +54,12 @@ KYA KIYA:
             student ne offline form submit kiya ya nahi, aur agar kiya toh
             kaun si image. Har clearance pe alag nahi — ek form, ek image,
             poori application ke liye. Clean design.
+          - Teen naye image ID fields add kiye — document upload Step 3 ke liye:
+              tcOrAdmissionSlipImageId  → TC ya PG admission slip
+              bankPassbookImageId       → Bank passbook front page
+              feesSlipImageId           → Fees receipt
+            Teeno ObjectId hain (ref: Image) — null jab tak student upload na kare.
+            Schema change seedha — baki sab infrastructure already tha. Smart.
 
       * Image Schema (src/models/imageModel.js)
           - Naya schema banaya images store karne ke liye
@@ -134,6 +140,13 @@ KYA KIYA:
           aata hai, saveImageToDb se save hota hai, application pe noDuesMode
           "offline" aur noDuesImageId set. Admin baad mein image dekh ke apni
           clearance approve karta hai jaise pehle karta tha — unka flow same hai.
+      * PATCH /api/application/my/documents    — "Lo bhai, teeno documents upload kar diye"
+          Step 3 ka naya endpoint. Student ek saath 3 images bhejta hai —
+          TC/PG admission slip, bank passbook front page, aur fees slip.
+          upload.fields([...]) se teeno fields ek hi multipart request mein.
+          Promise.all se teeno parallel compress + save — sequential nahi,
+          sab ek saath. Timeline mein "Documents Uploaded" entry bhi daali.
+          Wohi submitOfflineNoDues pattern — bas 3 images ek saath.
   - Bank details update pe guard lagaya — refund ho gaya?
     Ab bank details nahi badle. Too late bestie, paisa ja chuka.
   - Pehla timeline entry submission pe daala — audit trail ka inauguration
@@ -143,7 +156,8 @@ KEY FILES:
   src/services/student.service.js | src/controllers/student.controller.js
   src/routes/student.js | src/repositories/student.repository.js
   src/services/application.service.js (submitApplication, getMyApplication,
-                                        updateBankDetails, submitOfflineNoDues)
+                                        updateBankDetails, submitOfflineNoDues,
+                                        uploadDocuments)
 
 --------------------------------------------------------------------------------
 4. DHRUV  |  "5 departments ko razi karo" guy  |  Clearance Workflow Dev
@@ -351,7 +365,8 @@ ENDPOINT SUMMARY — KAUN SA ROUTE KISNE BANAYA
     POST   /api/application/submit                — Aishwary
     GET    /api/application/my                    — Aishwary
     PATCH  /api/application/bank-details          — Aishwary
-    PATCH  /api/application/my/offline-noDues     — Aishwary  [NEW]
+    PATCH  /api/application/my/offline-noDues     — Aishwary
+    PATCH  /api/application/my/documents          — Aishwary  [NEW]
     GET    /api/application/all                   — Sumit
     GET    /api/application/stats/dashboard       — Sumit
     GET    /api/application/:id                   — Sumit
